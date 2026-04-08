@@ -106,29 +106,50 @@ export class ObstacleManager {
 
   generate(wave) {
     this.obstacles = [];
+    // Obstacles from wave 1, scaling up aggressively
     const count = Math.min(
       CONFIG.OBSTACLE_MAX_PER_WAVE,
-      Math.floor(wave / 2)
+      CONFIG.OBSTACLE_MIN_PER_WAVE + Math.floor(wave * 1.2)
     );
 
     const gridCols = Math.floor(CONFIG.GAME_WIDTH / CONFIG.OBSTACLE_SIZE);
+    const gridRows = Math.floor(
+      (CONFIG.OBSTACLE_MAX_Y - CONFIG.OBSTACLE_MIN_Y) / CONFIG.OBSTACLE_SIZE
+    );
     const usedCells = new Set();
+
+    // Place obstacles in varied patterns depending on wave
+    const pattern = wave % 3;
 
     for (let i = 0; i < count; i++) {
       let attempts = 0;
-      while (attempts < 20) {
-        const col = 1 + Math.floor(Math.random() * (gridCols - 2));
-        const y = CONFIG.OBSTACLE_MIN_Y +
-                  Math.floor(Math.random() *
-                  ((CONFIG.OBSTACLE_MAX_Y - CONFIG.OBSTACLE_MIN_Y) / CONFIG.OBSTACLE_SIZE)) *
-                  CONFIG.OBSTACLE_SIZE;
-        const key = `${col},${y}`;
+      while (attempts < 30) {
+        let col, row;
+
+        if (pattern === 0) {
+          // Scattered random
+          col = 1 + Math.floor(Math.random() * (gridCols - 2));
+          row = Math.floor(Math.random() * gridRows);
+        } else if (pattern === 1) {
+          // Tend toward walls - creates narrow corridors
+          col = Math.random() < 0.5
+            ? 1 + Math.floor(Math.random() * 3)
+            : gridCols - 4 + Math.floor(Math.random() * 3);
+          row = Math.floor(Math.random() * gridRows);
+        } else {
+          // Cluster toward center - forces weaving
+          col = Math.floor(gridCols / 2 - 3 + Math.random() * 6);
+          row = Math.floor(Math.random() * gridRows);
+        }
+
+        col = Math.max(1, Math.min(col, gridCols - 2));
+        const key = `${col},${row}`;
 
         if (!usedCells.has(key)) {
           usedCells.add(key);
           this.obstacles.push(new Obstacle(
             col * CONFIG.OBSTACLE_SIZE,
-            y,
+            CONFIG.OBSTACLE_MIN_Y + row * CONFIG.OBSTACLE_SIZE,
             Math.floor(Math.random() * 3)
           ));
           break;

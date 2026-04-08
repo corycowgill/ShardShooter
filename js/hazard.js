@@ -294,8 +294,8 @@ export class HazardManager {
     this.spawnTimer = 0;
     this.spawnInterval = CONFIG.HAZARD_SPAWN_INTERVAL_BASE;
     this.corruptionTimer = 0;
-    this.corruptionInterval = 30000;
-    this.corruptionDuration = 8000;
+    this.corruptionInterval = 18000;
+    this.corruptionDuration = 10000;
   }
 
   update(wave, playerX, dt) {
@@ -318,13 +318,13 @@ export class HazardManager {
       this.spawnInterval - wave * 300
     );
 
-    if (this.spawnTimer >= interval && wave >= 2) {
+    if (this.spawnTimer >= interval) {
       this.spawnTimer = 0;
       this._spawnHazard(wave, playerX);
     }
 
-    // Corruption timer (starts appearing at wave 5)
-    if (wave >= 5) {
+    // Corruption timer (starts appearing at wave 3)
+    if (wave >= 3) {
       this.corruptionTimer += dt;
       if (!this.corruption.active && this.corruptionTimer >= this.corruptionInterval) {
         this.corruption.activate();
@@ -340,9 +340,9 @@ export class HazardManager {
     const roll = Math.random();
     const x = 30 + Math.random() * (CONFIG.GAME_WIDTH - 60);
 
-    if (wave >= 4 && roll < 0.25) {
+    if (wave >= 3 && roll < 0.3) {
       this.hazards.push(new DivingEnemy(playerX + (Math.random() - 0.5) * 80));
-    } else if (wave >= 3 && roll < 0.5) {
+    } else if (wave >= 2 && roll < 0.55) {
       this.hazards.push(new RicochetHazard(x, -10));
     } else {
       this.hazards.push(new EnergyOrb(x, -10));
