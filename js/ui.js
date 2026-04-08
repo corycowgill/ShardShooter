@@ -104,11 +104,12 @@ export class UI {
       ctx.globalAlpha = 1;
     }
 
-    // Pause button (top right, below lives)
-    ctx.textAlign = 'right';
-    ctx.font = '12px "Courier New", monospace';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-    ctx.fillText('II', CONFIG.GAME_WIDTH - 10, 36);
+    // Pause button (top right, below lives) - large touch target
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 16px "Courier New", monospace';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.fillText('| |', CONFIG.GAME_WIDTH - 24, 38);
 
     ctx.restore();
   }
@@ -200,7 +201,7 @@ export class UI {
       ctx.fillText('AUTO-FIRE ENABLED', CONFIG.GAME_WIDTH / 2, CONFIG.GAME_HEIGHT * 0.80);
     } else {
       ctx.fillText('\u2190 \u2192 OR A/D TO MOVE', CONFIG.GAME_WIDTH / 2, CONFIG.GAME_HEIGHT * 0.76);
-      ctx.fillText('SPACE TO FIRE \u2022 P TO PAUSE', CONFIG.GAME_WIDTH / 2, CONFIG.GAME_HEIGHT * 0.80);
+      ctx.fillText('AUTO-FIRE \u2022 P TO PAUSE', CONFIG.GAME_WIDTH / 2, CONFIG.GAME_HEIGHT * 0.80);
     }
 
     ctx.font = '10px "Courier New", monospace';
@@ -353,6 +354,6 @@ export class UI {
 
   // Check if a touch/click hit the pause button area
   isPauseButtonHit(x, y) {
-    return x >= CONFIG.GAME_WIDTH - 40 && y <= 50;
+    return x >= CONFIG.GAME_WIDTH - 55 && y <= 55;
   }
 }

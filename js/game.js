@@ -64,9 +64,6 @@ export class Game {
     // Pause handling
     this.input.pauseAction = () => this._togglePause();
 
-    // Auto-fire flag (mobile always auto-fires)
-    this.autoFire = this.input.isMobile;
-
     // Start the loop
     this._resize();
     window.addEventListener('resize', () => this._resize());
@@ -181,12 +178,9 @@ export class Game {
       }
     }
 
-    // Shooting - auto-fire on mobile (while touching), space/up/click on desktop
+    // Shooting - always auto-fire for arcade feel
     const now = performance.now();
-    const shouldFire = this.input.isMobile
-      ? this.input.touchActive
-      : this.input.isFiring();
-    if (shouldFire && this.player.canFire(now)) {
+    if (this.player.canFire(now)) {
       const pos = this.player.fire(now);
       this.bullets.add(pos.x, pos.y);
       Audio.shoot();
@@ -199,11 +193,24 @@ export class Game {
     this.obstacles.update();
     this.hazards.update(this.wave, this.player.centerX, dt);
 
-    // Bullet trails
+    // Bullet trails (limit to avoid particle spam)
+    const maxTrails = 8;
+    let trails = 0;
     for (const b of this.bullets.bullets) {
-      if (Math.random() < 0.3) {
+      if (trails >= maxTrails) break;
+      if (Math.random() < 0.25) {
         this.particles.trail(b.centerX, b.y + b.height, CONFIG.COLORS.BULLET_GLOW);
+        trails++;
       }
+    }
+
+    // Player engine trail
+    if (this.player.alive && Math.random() < 0.4) {
+      this.particles.trail(
+        this.player.centerX + (Math.random() - 0.5) * 6,
+        this.player.y + this.player.height + 4,
+        CONFIG.COLORS.PLAYER
+      );
     }
 
     // Combo timer
@@ -361,7 +368,8 @@ export class Game {
       CONFIG.WAVE_MAX_LENGTH,
       Math.floor(CONFIG.WAVE_BASE_LENGTH + (this.wave - 1) * CONFIG.WAVE_LENGTH_INCREMENT)
     );
-    const speed = CONFIG.SHARD_BASE_SPEED + (this.wave - 1) * CONFIG.SHARD_SPEED_INCREMENT;
+    const speedMult = Math.min(CONFIG.DIFFICULTY_MAX_SPEED_MULT, 1 + (this.wave - 1) * CONFIG.DIFFICULTY_SPEED_SCALE);
+    const speed = CONFIG.SHARD_BASE_SPEED * speedMult + (this.wave - 1) * CONFIG.SHARD_SPEED_INCREMENT;
 
     for (let i = 0; i < numChains; i++) {
       const maxStartX = CONFIG.GAME_WIDTH - chainLength * CONFIG.SHARD_SIZE;
