@@ -1,7 +1,6 @@
 // Additional hazard/enemy types
 import { CONFIG } from './config.js';
 
-// Base hazard class
 class Hazard {
   constructor(x, y, type) {
     this.x = x;
@@ -20,7 +19,7 @@ class Hazard {
   }
 }
 
-// Drifting energy orb - moves in a slow sine wave pattern
+// Drifting energy orb
 export class EnergyOrb extends Hazard {
   constructor(x, y) {
     super(x, y, 'orb');
@@ -30,6 +29,7 @@ export class EnergyOrb extends Hazard {
     this.amplitude = 30 + Math.random() * 20;
     this.baseX = x;
     this.time = 0;
+    this.ringPhase = Math.random() * Math.PI * 2;
   }
 
   update() {
@@ -38,6 +38,7 @@ export class EnergyOrb extends Hazard {
     this.baseX += this.vx * 0.3;
     this.y += this.vy;
     this.phase += 0.05;
+    this.ringPhase += 0.04;
 
     if (this.y > CONFIG.GAME_HEIGHT + 20 ||
         this.x < -30 || this.x > CONFIG.GAME_WIDTH + 30) {
@@ -48,59 +49,91 @@ export class EnergyOrb extends Hazard {
   render(ctx) {
     const pulse = 0.7 + Math.sin(this.phase) * 0.3;
     ctx.save();
-    ctx.shadowColor = CONFIG.COLORS.HAZARD_ORB;
-    ctx.shadowBlur = 12 * pulse;
 
-    // Outer glow
-    const grad = ctx.createRadialGradient(
-      this.x, this.y, 0, this.x, this.y, this.size
-    );
-    grad.addColorStop(0, CONFIG.COLORS.HAZARD_ORB);
-    grad.addColorStop(0.6, CONFIG.COLORS.HAZARD_ORB + '88');
-    grad.addColorStop(1, 'transparent');
-    ctx.fillStyle = grad;
+    // Orbiting ring
+    ctx.strokeStyle = `rgba(255, 145, 0, ${0.15 + pulse * 0.15})`;
+    ctx.lineWidth = 0.8;
     ctx.beginPath();
-    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    ctx.ellipse(this.x, this.y, this.size * 1.4, this.size * 0.5,
+                this.ringPhase, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Outer aura
+    ctx.shadowColor = CONFIG.COLORS.HAZARD_ORB;
+    ctx.shadowBlur = 15 * pulse;
+    const outerGrad = ctx.createRadialGradient(
+      this.x, this.y, 0, this.x, this.y, this.size * 1.3
+    );
+    outerGrad.addColorStop(0, `rgba(255, 145, 0, ${0.5 * pulse})`);
+    outerGrad.addColorStop(0.4, `rgba(255, 100, 0, ${0.3 * pulse})`);
+    outerGrad.addColorStop(0.8, `rgba(255, 60, 0, ${0.1 * pulse})`);
+    outerGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = outerGrad;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size * 1.3, 0, Math.PI * 2);
     ctx.fill();
 
-    // Core
+    // Main orb body
+    const bodyGrad = ctx.createRadialGradient(
+      this.x - this.size * 0.2, this.y - this.size * 0.2, 0,
+      this.x, this.y, this.size * 0.8
+    );
+    bodyGrad.addColorStop(0, '#ffdd88');
+    bodyGrad.addColorStop(0.4, CONFIG.COLORS.HAZARD_ORB);
+    bodyGrad.addColorStop(1, '#cc5500');
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size * 0.7, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Hot core
+    ctx.shadowBlur = 0;
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.arc(this.x, this.y, this.size * 0.3, 0, Math.PI * 2);
+    ctx.arc(this.x - 1, this.y - 1, this.size * 0.2, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.shadowBlur = 0;
+    // Specular
+    ctx.fillStyle = `rgba(255, 255, 255, ${0.3 + pulse * 0.2})`;
+    ctx.beginPath();
+    ctx.ellipse(this.x - this.size * 0.2, this.y - this.size * 0.25,
+                this.size * 0.15, this.size * 0.08, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.restore();
   }
 }
 
-// Bouncing ricochet hazard - bounces off walls
+// Bouncing ricochet hazard
 export class RicochetHazard extends Hazard {
   constructor(x, y) {
     super(x, y, 'ricochet');
     this.size = CONFIG.HAZARD_RICOCHET_SIZE;
-    const angle = Math.random() * Math.PI * 0.5 + Math.PI * 0.25; // mostly downward
+    const angle = Math.random() * Math.PI * 0.5 + Math.PI * 0.25;
     this.vx = Math.cos(angle) * CONFIG.HAZARD_RICOCHET_SPEED * (Math.random() < 0.5 ? 1 : -1);
     this.vy = Math.sin(angle) * CONFIG.HAZARD_RICOCHET_SPEED;
     this.bounces = 0;
     this.maxBounces = 5;
     this.rotation = 0;
+    this.trailPositions = [];
   }
 
   update() {
+    // Store trail
+    this.trailPositions.push({ x: this.x, y: this.y });
+    if (this.trailPositions.length > 6) this.trailPositions.shift();
+
     this.x += this.vx;
     this.y += this.vy;
     this.rotation += 0.15;
     this.phase += 0.08;
 
-    // Bounce off walls
     if (this.x - this.size / 2 <= 0 || this.x + this.size / 2 >= CONFIG.GAME_WIDTH) {
       this.vx *= -1;
       this.x = Math.max(this.size / 2, Math.min(CONFIG.GAME_WIDTH - this.size / 2, this.x));
       this.bounces++;
     }
 
-    // Bounce off top
     if (this.y - this.size / 2 <= 0) {
       this.vy = Math.abs(this.vy);
       this.bounces++;
@@ -113,26 +146,53 @@ export class RicochetHazard extends Hazard {
 
   render(ctx) {
     ctx.save();
+
+    // Motion trail
+    for (let i = 0; i < this.trailPositions.length; i++) {
+      const t = this.trailPositions[i];
+      const alpha = (i / this.trailPositions.length) * 0.25;
+      const sz = (this.size / 2) * (i / this.trailPositions.length) * 0.6;
+      ctx.fillStyle = `rgba(255, 23, 68, ${alpha})`;
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, sz, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     ctx.translate(this.x, this.y);
     ctx.rotate(this.rotation);
 
     ctx.shadowColor = CONFIG.COLORS.HAZARD_RICOCHET;
-    ctx.shadowBlur = 8;
-    ctx.fillStyle = CONFIG.COLORS.HAZARD_RICOCHET;
+    ctx.shadowBlur = 10;
 
-    // Star/spike shape
+    // Outer spike ring
     const s = this.size / 2;
+    const spikeGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, s);
+    spikeGrad.addColorStop(0, '#ff6680');
+    spikeGrad.addColorStop(0.5, CONFIG.COLORS.HAZARD_RICOCHET);
+    spikeGrad.addColorStop(1, '#aa0022');
+    ctx.fillStyle = spikeGrad;
+
     ctx.beginPath();
-    for (let i = 0; i < 4; i++) {
-      const angle = (Math.PI / 2) * i;
-      ctx.lineTo(Math.cos(angle) * s, Math.sin(angle) * s);
-      ctx.lineTo(Math.cos(angle + Math.PI / 4) * s * 0.4,
-                 Math.sin(angle + Math.PI / 4) * s * 0.4);
+    for (let i = 0; i < 8; i++) {
+      const angle = (Math.PI / 4) * i;
+      const outerR = i % 2 === 0 ? s : s * 0.4;
+      ctx.lineTo(Math.cos(angle) * outerR, Math.sin(angle) * outerR);
     }
     ctx.closePath();
     ctx.fill();
 
+    // Edge highlight
+    ctx.strokeStyle = 'rgba(255, 180, 180, 0.4)';
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
+
+    // Center bright dot
     ctx.shadowBlur = 0;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(0, 0, s * 0.2, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.restore();
   }
 }
@@ -145,9 +205,10 @@ export class DivingEnemy extends Hazard {
     this.vy = CONFIG.HAZARD_DIVER_SPEED;
     this.vx = 0;
     this.targetX = x;
-    this.state = 'approach'; // 'approach' -> 'dive'
+    this.state = 'approach';
     this.approachY = 60 + Math.random() * 80;
     this.waitTimer = 0;
+    this.wingPhase = 0;
   }
 
   setTarget(playerX) {
@@ -156,6 +217,7 @@ export class DivingEnemy extends Hazard {
 
   update() {
     this.phase += 0.06;
+    this.wingPhase += 0.12;
 
     if (this.state === 'approach') {
       this.y += this.vy * 0.5;
@@ -164,7 +226,6 @@ export class DivingEnemy extends Hazard {
         this.waitTimer = 40;
       }
     } else if (this.state === 'hover') {
-      // Drift toward target X
       const diff = this.targetX - this.x;
       this.x += Math.sign(diff) * Math.min(Math.abs(diff), 2);
       this.waitTimer--;
@@ -183,34 +244,88 @@ export class DivingEnemy extends Hazard {
 
   render(ctx) {
     ctx.save();
-    ctx.shadowColor = CONFIG.COLORS.HAZARD_DIVER;
-    ctx.shadowBlur = 8;
-    ctx.fillStyle = CONFIG.COLORS.HAZARD_DIVER;
-
-    // Arrow/chevron shape pointing down
     const s = this.size / 2;
-    ctx.beginPath();
-    ctx.moveTo(this.x, this.y + s);
-    ctx.lineTo(this.x - s, this.y - s * 0.5);
-    ctx.lineTo(this.x - s * 0.3, this.y - s * 0.2);
-    ctx.lineTo(this.x, this.y + s * 0.3);
-    ctx.lineTo(this.x + s * 0.3, this.y - s * 0.2);
-    ctx.lineTo(this.x + s, this.y - s * 0.5);
-    ctx.closePath();
-    ctx.fill();
+    const wingFlap = Math.sin(this.wingPhase) * 0.15;
 
-    // Warning indicator when hovering
+    ctx.shadowColor = CONFIG.COLORS.HAZARD_DIVER;
+    ctx.shadowBlur = 10;
+
+    // Warning line when hovering
     if (this.state === 'hover') {
-      ctx.globalAlpha = 0.3 + Math.sin(this.phase * 3) * 0.3;
-      ctx.strokeStyle = CONFIG.COLORS.HAZARD_DIVER;
-      ctx.lineWidth = 1;
-      ctx.setLineDash([4, 4]);
+      ctx.globalAlpha = 0.15 + Math.sin(this.phase * 4) * 0.15;
+      const warnGrad = ctx.createLinearGradient(this.x, this.y + s, this.x, CONFIG.GAME_HEIGHT);
+      warnGrad.addColorStop(0, CONFIG.COLORS.HAZARD_DIVER);
+      warnGrad.addColorStop(1, 'transparent');
+      ctx.strokeStyle = warnGrad;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
       ctx.beginPath();
       ctx.moveTo(this.x, this.y + s);
       ctx.lineTo(this.x, CONFIG.GAME_HEIGHT);
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.globalAlpha = 1;
+
+      // Target reticle
+      ctx.strokeStyle = `rgba(255, 234, 0, ${0.3 + Math.sin(this.phase * 4) * 0.2})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(this.x, CONFIG.GAME_HEIGHT - CONFIG.PLAYER_Y_OFFSET, 8, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Body - angular diving shape
+    ctx.translate(this.x, this.y);
+
+    // Wing glow
+    const wingSpan = s * 1.2;
+    ctx.fillStyle = `rgba(255, 234, 0, ${0.15 + Math.sin(this.wingPhase) * 0.1})`;
+    ctx.beginPath();
+    ctx.moveTo(-wingSpan, -s * 0.2 + wingFlap * s);
+    ctx.lineTo(0, s * 0.1);
+    ctx.lineTo(wingSpan, -s * 0.2 - wingFlap * s);
+    ctx.lineTo(0, -s * 0.5);
+    ctx.closePath();
+    ctx.fill();
+
+    // Main body
+    const bodyGrad = ctx.createLinearGradient(0, -s, 0, s);
+    bodyGrad.addColorStop(0, '#ffee66');
+    bodyGrad.addColorStop(0.4, CONFIG.COLORS.HAZARD_DIVER);
+    bodyGrad.addColorStop(1, '#cc9900');
+    ctx.fillStyle = bodyGrad;
+
+    ctx.beginPath();
+    ctx.moveTo(0, s * 1.1);       // Nose (pointing down)
+    ctx.lineTo(-s * 0.8, -s * 0.4);
+    ctx.lineTo(-s * 0.3, -s * 0.6);
+    ctx.lineTo(0, -s * 0.3);
+    ctx.lineTo(s * 0.3, -s * 0.6);
+    ctx.lineTo(s * 0.8, -s * 0.4);
+    ctx.closePath();
+    ctx.fill();
+
+    // Edge highlight
+    ctx.strokeStyle = 'rgba(255, 255, 200, 0.4)';
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
+
+    // Engine glow at top
+    ctx.shadowBlur = 0;
+    const engPulse = 0.5 + Math.sin(this.phase * 3) * 0.5;
+    ctx.fillStyle = `rgba(255, 100, 0, ${engPulse * 0.6})`;
+    ctx.beginPath();
+    ctx.arc(0, -s * 0.35, s * 0.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Nose hot point
+    if (this.state === 'dive') {
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = CONFIG.COLORS.HAZARD_DIVER;
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.arc(0, s * 0.9, 1.5, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     ctx.shadowBlur = 0;
@@ -218,7 +333,7 @@ export class DivingEnemy extends Hazard {
   }
 }
 
-// Corruption field - rises from bottom, pressures the player upward
+// Corruption field
 export class CorruptionField {
   constructor() {
     this.height = 0;
@@ -226,6 +341,7 @@ export class CorruptionField {
     this.maxHeight = 120;
     this.riseSpeed = CONFIG.HAZARD_CORRUPTION_RISE_SPEED;
     this.phase = 0;
+    this.bubbles = [];
   }
 
   activate() {
@@ -239,17 +355,34 @@ export class CorruptionField {
   update() {
     if (this.active) {
       this.height = Math.min(this.height + this.riseSpeed, this.maxHeight);
+      // Spawn corruption bubbles
+      if (Math.random() < 0.08 && this.height > 5) {
+        this.bubbles.push({
+          x: Math.random() * CONFIG.GAME_WIDTH,
+          y: CONFIG.GAME_HEIGHT - Math.random() * this.height * 0.5,
+          size: 1 + Math.random() * 3,
+          vy: -0.3 - Math.random() * 0.5,
+          life: 40 + Math.random() * 30,
+        });
+      }
     } else {
       this.height = Math.max(this.height - this.riseSpeed * 2, 0);
     }
     this.phase += 0.03;
+
+    // Update bubbles
+    for (const b of this.bubbles) {
+      b.y += b.vy;
+      b.life--;
+      b.size *= 0.99;
+    }
+    this.bubbles = this.bubbles.filter(b => b.life > 0 && b.y > this.topY - 20);
   }
 
   get topY() {
     return CONFIG.GAME_HEIGHT - this.height;
   }
 
-  // Check if a point is inside the corruption
   contains(x, y) {
     return this.height > 0 && y >= this.topY;
   }
@@ -260,21 +393,45 @@ export class CorruptionField {
     ctx.save();
     const y = this.topY;
 
-    // Gradient fill
+    // Multi-layer gradient fill
     const grad = ctx.createLinearGradient(0, y, 0, CONFIG.GAME_HEIGHT);
-    grad.addColorStop(0, 'rgba(170, 0, 255, 0.1)');
-    grad.addColorStop(0.3, 'rgba(170, 0, 255, 0.25)');
-    grad.addColorStop(1, 'rgba(170, 0, 255, 0.4)');
+    grad.addColorStop(0, 'rgba(170, 0, 255, 0.05)');
+    grad.addColorStop(0.15, 'rgba(170, 0, 255, 0.15)');
+    grad.addColorStop(0.4, 'rgba(130, 0, 200, 0.3)');
+    grad.addColorStop(1, 'rgba(80, 0, 150, 0.5)');
     ctx.fillStyle = grad;
     ctx.fillRect(0, y, CONFIG.GAME_WIDTH, this.height);
 
-    // Wavy top edge
+    // Horizontal corruption streaks
+    ctx.globalAlpha = 0.12;
+    for (let i = 0; i < 4; i++) {
+      const streakY = y + (this.height * (i + 1)) / 5;
+      const streakGrad = ctx.createLinearGradient(0, streakY, CONFIG.GAME_WIDTH, streakY);
+      streakGrad.addColorStop(0, 'transparent');
+      streakGrad.addColorStop(0.3 + Math.sin(this.phase + i) * 0.2, '#dd44ff');
+      streakGrad.addColorStop(0.7 + Math.sin(this.phase + i + 1) * 0.2, '#dd44ff');
+      streakGrad.addColorStop(1, 'transparent');
+      ctx.fillStyle = streakGrad;
+      ctx.fillRect(0, streakY - 1, CONFIG.GAME_WIDTH, 2);
+    }
+    ctx.globalAlpha = 1;
+
+    // Bubbles
+    for (const b of this.bubbles) {
+      const alpha = Math.min(1, b.life / 20) * 0.5;
+      ctx.fillStyle = `rgba(200, 100, 255, ${alpha})`;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Wavy top edge - double line
     ctx.strokeStyle = CONFIG.COLORS.HAZARD_CORRUPTION;
     ctx.lineWidth = 2;
     ctx.shadowColor = CONFIG.COLORS.HAZARD_CORRUPTION;
-    ctx.shadowBlur = 10;
+    ctx.shadowBlur = 12;
     ctx.beginPath();
-    for (let x = 0; x <= CONFIG.GAME_WIDTH; x += 4) {
+    for (let x = 0; x <= CONFIG.GAME_WIDTH; x += 3) {
       const wave = Math.sin(x * 0.03 + this.phase) * 4 +
                    Math.sin(x * 0.07 + this.phase * 1.5) * 2;
       if (x === 0) ctx.moveTo(x, y + wave);
@@ -282,7 +439,19 @@ export class CorruptionField {
     }
     ctx.stroke();
 
+    // Secondary thinner edge line
+    ctx.strokeStyle = 'rgba(220, 100, 255, 0.3)';
+    ctx.lineWidth = 1;
     ctx.shadowBlur = 0;
+    ctx.beginPath();
+    for (let x = 0; x <= CONFIG.GAME_WIDTH; x += 3) {
+      const wave = Math.sin(x * 0.04 + this.phase * 1.2 + 1) * 3 +
+                   Math.sin(x * 0.06 + this.phase * 0.8) * 1.5;
+      if (x === 0) ctx.moveTo(x, y + wave + 4);
+      else ctx.lineTo(x, y + wave + 4);
+    }
+    ctx.stroke();
+
     ctx.restore();
   }
 }
@@ -299,7 +468,6 @@ export class HazardManager {
   }
 
   update(wave, playerX, dt) {
-    // Update existing hazards
     for (const h of this.hazards) {
       if (h.type === 'diver' && h.state === 'hover') {
         h.setTarget(playerX);
@@ -308,10 +476,8 @@ export class HazardManager {
     }
     this.hazards = this.hazards.filter(h => h.alive);
 
-    // Update corruption
     this.corruption.update();
 
-    // Spawn timer
     this.spawnTimer += dt;
     const interval = Math.max(
       CONFIG.HAZARD_SPAWN_INTERVAL_MIN,
@@ -323,7 +489,6 @@ export class HazardManager {
       this._spawnHazard(wave, playerX);
     }
 
-    // Corruption timer (starts appearing at wave 3)
     if (wave >= 3) {
       this.corruptionTimer += dt;
       if (!this.corruption.active && this.corruptionTimer >= this.corruptionInterval) {

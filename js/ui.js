@@ -317,16 +317,81 @@ export class UI {
     return { x: btnX, y: btnY, width: btnW, height: btnH };
   }
 
-  // Render background grid
+  // Pre-generate starfield once
+  _initStars() {
+    if (this._stars) return;
+    this._stars = [];
+    for (let i = 0; i < 80; i++) {
+      this._stars.push({
+        x: Math.random() * CONFIG.GAME_WIDTH,
+        y: Math.random() * CONFIG.GAME_HEIGHT,
+        size: 0.3 + Math.random() * 1.2,
+        brightness: 0.2 + Math.random() * 0.6,
+        twinkleSpeed: 0.002 + Math.random() * 0.004,
+        twinkleOffset: Math.random() * Math.PI * 2,
+      });
+    }
+  }
+
   renderBackground(ctx, time) {
-    ctx.fillStyle = CONFIG.COLORS.BG;
+    this._initStars();
+
+    // Dark background with subtle vertical gradient
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, CONFIG.GAME_HEIGHT);
+    bgGrad.addColorStop(0, '#06061a');
+    bgGrad.addColorStop(0.4, CONFIG.COLORS.BG);
+    bgGrad.addColorStop(1, '#0c0820');
+    ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, CONFIG.GAME_WIDTH, CONFIG.GAME_HEIGHT);
 
-    // Subtle grid
-    ctx.strokeStyle = CONFIG.COLORS.GRID;
-    ctx.lineWidth = 0.5;
-    const gridSize = 40;
+    // Nebula-like color washes
+    const nebulaAlpha = 0.03 + Math.sin(time * 0.0005) * 0.01;
+    const neb1 = ctx.createRadialGradient(
+      CONFIG.GAME_WIDTH * 0.2 + Math.sin(time * 0.0003) * 30,
+      CONFIG.GAME_HEIGHT * 0.3,
+      0,
+      CONFIG.GAME_WIDTH * 0.2, CONFIG.GAME_HEIGHT * 0.3, 180
+    );
+    neb1.addColorStop(0, `rgba(100, 0, 200, ${nebulaAlpha})`);
+    neb1.addColorStop(1, 'transparent');
+    ctx.fillStyle = neb1;
+    ctx.fillRect(0, 0, CONFIG.GAME_WIDTH, CONFIG.GAME_HEIGHT);
 
+    const neb2 = ctx.createRadialGradient(
+      CONFIG.GAME_WIDTH * 0.8 + Math.sin(time * 0.0004 + 2) * 25,
+      CONFIG.GAME_HEIGHT * 0.6,
+      0,
+      CONFIG.GAME_WIDTH * 0.8, CONFIG.GAME_HEIGHT * 0.6, 150
+    );
+    neb2.addColorStop(0, `rgba(0, 80, 150, ${nebulaAlpha})`);
+    neb2.addColorStop(1, 'transparent');
+    ctx.fillStyle = neb2;
+    ctx.fillRect(0, 0, CONFIG.GAME_WIDTH, CONFIG.GAME_HEIGHT);
+
+    // Stars with twinkling
+    for (const star of this._stars) {
+      const twinkle = star.brightness * (0.6 + Math.sin(time * star.twinkleSpeed + star.twinkleOffset) * 0.4);
+      ctx.fillStyle = `rgba(200, 220, 255, ${twinkle})`;
+      ctx.beginPath();
+      ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+      ctx.fill();
+      // Subtle cross-shaped glint on brighter stars
+      if (star.size > 0.8) {
+        ctx.strokeStyle = `rgba(200, 220, 255, ${twinkle * 0.3})`;
+        ctx.lineWidth = 0.3;
+        ctx.beginPath();
+        ctx.moveTo(star.x - star.size * 2, star.y);
+        ctx.lineTo(star.x + star.size * 2, star.y);
+        ctx.moveTo(star.x, star.y - star.size * 2);
+        ctx.lineTo(star.x, star.y + star.size * 2);
+        ctx.stroke();
+      }
+    }
+
+    // Grid overlay
+    ctx.strokeStyle = CONFIG.COLORS.GRID;
+    ctx.lineWidth = 0.4;
+    const gridSize = 40;
     for (let x = 0; x < CONFIG.GAME_WIDTH; x += gridSize) {
       ctx.beginPath();
       ctx.moveTo(x, 0);
@@ -340,8 +405,38 @@ export class UI {
       ctx.stroke();
     }
 
-    // Danger zone indicator at bottom
+    // Grid intersection dots
+    ctx.fillStyle = 'rgba(40, 40, 80, 0.5)';
+    for (let x = 0; x < CONFIG.GAME_WIDTH; x += gridSize) {
+      for (let y = 0; y < CONFIG.GAME_HEIGHT; y += gridSize) {
+        ctx.beginPath();
+        ctx.arc(x, y, 0.8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Side border glow
+    const sideGrad = ctx.createLinearGradient(0, 0, 12, 0);
+    sideGrad.addColorStop(0, 'rgba(0, 229, 255, 0.06)');
+    sideGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = sideGrad;
+    ctx.fillRect(0, 0, 12, CONFIG.GAME_HEIGHT);
+
+    const sideGrad2 = ctx.createLinearGradient(CONFIG.GAME_WIDTH, 0, CONFIG.GAME_WIDTH - 12, 0);
+    sideGrad2.addColorStop(0, 'rgba(0, 229, 255, 0.06)');
+    sideGrad2.addColorStop(1, 'transparent');
+    ctx.fillStyle = sideGrad2;
+    ctx.fillRect(CONFIG.GAME_WIDTH - 12, 0, 12, CONFIG.GAME_HEIGHT);
+
+    // Danger zone line with gradient fade
     const dangerY = CONFIG.GAME_HEIGHT - CONFIG.PLAYER_Y_OFFSET - 20;
+    const dangerGrad = ctx.createLinearGradient(0, dangerY - 6, 0, dangerY + 6);
+    dangerGrad.addColorStop(0, 'transparent');
+    dangerGrad.addColorStop(0.5, 'rgba(255, 23, 68, 0.12)');
+    dangerGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = dangerGrad;
+    ctx.fillRect(0, dangerY - 6, CONFIG.GAME_WIDTH, 12);
+
     ctx.strokeStyle = 'rgba(255, 23, 68, 0.1)';
     ctx.lineWidth = 1;
     ctx.setLineDash([8, 8]);

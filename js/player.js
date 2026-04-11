@@ -12,6 +12,7 @@ export class Player {
     this.lastFireTime = 0;
     this.alive = true;
     this.thrusterPhase = 0;
+    this.tilt = 0; // visual lean when moving
   }
 
   reset() {
@@ -21,6 +22,7 @@ export class Player {
     this.invincibleTimer = 0;
     this.lastFireTime = 0;
     this.alive = true;
+    this.tilt = 0;
   }
 
   update(input, dt) {
@@ -29,26 +31,31 @@ export class Player {
     const moveX = input.getMoveX();
     const touchX = input.getTouchTargetX();
 
+    let moveDir = 0;
     if (touchX !== null) {
-      // Touch: move toward touch X position
       const targetX = touchX - this.width / 2;
       const diff = targetX - this.x;
       if (Math.abs(diff) > CONFIG.TOUCH_DEAD_ZONE) {
-        this.x += Math.sign(diff) * Math.min(Math.abs(diff), CONFIG.PLAYER_SPEED * 1.2);
+        const step = Math.sign(diff) * Math.min(Math.abs(diff), CONFIG.PLAYER_SPEED * 1.2);
+        this.x += step;
+        moveDir = Math.sign(step);
       }
     } else if (moveX !== 0) {
       this.x += moveX * CONFIG.PLAYER_SPEED;
+      moveDir = Math.sign(moveX);
     }
 
-    // Clamp to bounds
+    // Smooth tilt toward movement direction
+    const targetTilt = moveDir * 0.25;
+    this.tilt += (targetTilt - this.tilt) * 0.15;
+
     this.x = Math.max(4, Math.min(CONFIG.GAME_WIDTH - this.width - 4, this.x));
 
-    // Update invincibility
     if (this.invincibleTimer > 0) {
       this.invincibleTimer -= dt;
     }
 
-    this.thrusterPhase += 0.15;
+    this.thrusterPhase += 0.18;
   }
 
   hit() {
@@ -86,7 +93,6 @@ export class Player {
   }
 
   get hitbox() {
-    // Slightly smaller hitbox for fair gameplay
     const inset = 3;
     return {
       x: this.x + inset,
@@ -108,55 +114,177 @@ export class Player {
     const cx = this.x + this.width / 2;
     const cy = this.y + this.height / 2;
 
-    // Shield glow when invincible
+    // Apply tilt
+    ctx.translate(cx, cy);
+    ctx.rotate(this.tilt);
+    ctx.translate(-cx, -cy);
+
+    // Shield effect when invincible
     if (this.isInvincible) {
+      const shieldPulse = 0.5 + Math.sin(this.thrusterPhase * 3) * 0.3;
+      // Hex shield
+      ctx.strokeStyle = `rgba(0, 229, 255, ${shieldPulse * 0.5})`;
+      ctx.lineWidth = 1.5;
+      ctx.shadowColor = CONFIG.COLORS.PLAYER;
+      ctx.shadowBlur = 12;
+      const sr = this.width * 0.85;
       ctx.beginPath();
-      ctx.arc(cx, cy, this.width * 0.8, 0, Math.PI * 2);
-      ctx.fillStyle = CONFIG.COLORS.PLAYER_SHIELD;
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI / 3) * i - Math.PI / 2;
+        const px = cx + Math.cos(a) * sr;
+        const py = cy + Math.sin(a) * sr;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.stroke();
+
+      // Inner glow fill
+      ctx.fillStyle = `rgba(0, 229, 255, ${shieldPulse * 0.08})`;
       ctx.fill();
+      ctx.shadowBlur = 0;
     }
 
-    // Thruster glow
-    const thrusterSize = 4 + Math.sin(this.thrusterPhase) * 2;
-    ctx.shadowColor = CONFIG.COLORS.BULLET;
-    ctx.shadowBlur = 8;
-    ctx.fillStyle = CONFIG.COLORS.BULLET;
+    // --- Thruster flames ---
+    const t1 = 4 + Math.sin(this.thrusterPhase) * 2.5;
+    const t2 = 3.5 + Math.sin(this.thrusterPhase + 1) * 2;
+    const flickerA = 0.6 + Math.sin(this.thrusterPhase * 2.7) * 0.4;
+
+    // Outer thruster glow (wide, faint)
+    const thrustGrad = ctx.createRadialGradient(
+      cx, this.y + this.height + 4, 0,
+      cx, this.y + this.height + 4, t1 + 6
+    );
+    thrustGrad.addColorStop(0, `rgba(255, 170, 0, ${flickerA * 0.4})`);
+    thrustGrad.addColorStop(0.5, `rgba(255, 100, 0, ${flickerA * 0.2})`);
+    thrustGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = thrustGrad;
     ctx.beginPath();
-    ctx.ellipse(cx, this.y + this.height + 2, 3, thrusterSize, 0, 0, Math.PI * 2);
+    ctx.arc(cx, this.y + this.height + 4, t1 + 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Left thruster
+    ctx.fillStyle = '#ffcc44';
+    ctx.shadowColor = '#ff8800';
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.ellipse(cx - 5, this.y + this.height + 2, 1.8, t2, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Right thruster
+    ctx.beginPath();
+    ctx.ellipse(cx + 5, this.y + this.height + 2, 1.8, t2, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Center thruster (brighter, larger)
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = '#ffe033';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.ellipse(cx, this.y + this.height + 2, 2.2, t1, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
 
-    // Ship body - angular design
+    // --- Ship body layers ---
+
+    // Wing underside detail / shadow layer
+    ctx.fillStyle = '#005577';
+    ctx.beginPath();
+    ctx.moveTo(cx, this.y + 2);
+    ctx.lineTo(cx + this.width / 2 + 1, this.y + this.height * 0.75);
+    ctx.lineTo(cx + this.width / 2 - 1, this.y + this.height + 1);
+    ctx.lineTo(cx + 3, this.y + this.height * 0.85);
+    ctx.lineTo(cx - 3, this.y + this.height * 0.85);
+    ctx.lineTo(cx - this.width / 2 + 1, this.y + this.height + 1);
+    ctx.lineTo(cx - this.width / 2 - 1, this.y + this.height * 0.75);
+    ctx.closePath();
+    ctx.fill();
+
+    // Main hull
     ctx.fillStyle = CONFIG.COLORS.PLAYER;
     ctx.shadowColor = CONFIG.COLORS.PLAYER;
-    ctx.shadowBlur = 10;
-
+    ctx.shadowBlur = 12;
     ctx.beginPath();
-    // Nose
-    ctx.moveTo(cx, this.y - 2);
-    // Right wing
+    ctx.moveTo(cx, this.y - 3);
     ctx.lineTo(cx + this.width / 2, this.y + this.height * 0.7);
     ctx.lineTo(cx + this.width / 2 - 2, this.y + this.height);
-    // Bottom center
     ctx.lineTo(cx + 3, this.y + this.height * 0.8);
     ctx.lineTo(cx, this.y + this.height * 0.65);
     ctx.lineTo(cx - 3, this.y + this.height * 0.8);
-    // Left wing
     ctx.lineTo(cx - this.width / 2 + 2, this.y + this.height);
     ctx.lineTo(cx - this.width / 2, this.y + this.height * 0.7);
     ctx.closePath();
     ctx.fill();
-
-    // Cockpit accent
     ctx.shadowBlur = 0;
-    ctx.fillStyle = CONFIG.COLORS.PLAYER_ACCENT;
+
+    // Wing panel lines
+    ctx.strokeStyle = 'rgba(0, 180, 220, 0.5)';
+    ctx.lineWidth = 0.7;
+    // Left wing line
     ctx.beginPath();
-    ctx.moveTo(cx, this.y + 4);
-    ctx.lineTo(cx + 4, this.y + this.height * 0.5);
+    ctx.moveTo(cx - 3, this.y + 6);
+    ctx.lineTo(cx - this.width / 2 + 2, this.y + this.height * 0.8);
+    ctx.stroke();
+    // Right wing line
+    ctx.beginPath();
+    ctx.moveTo(cx + 3, this.y + 6);
+    ctx.lineTo(cx + this.width / 2 - 2, this.y + this.height * 0.8);
+    ctx.stroke();
+
+    // Central spine highlight
+    const spineGrad = ctx.createLinearGradient(cx, this.y, cx, this.y + this.height * 0.7);
+    spineGrad.addColorStop(0, 'rgba(255, 255, 255, 0.35)');
+    spineGrad.addColorStop(1, 'rgba(255, 255, 255, 0.0)');
+    ctx.fillStyle = spineGrad;
+    ctx.beginPath();
+    ctx.moveTo(cx, this.y - 2);
+    ctx.lineTo(cx + 2, this.y + this.height * 0.4);
     ctx.lineTo(cx, this.y + this.height * 0.55);
-    ctx.lineTo(cx - 4, this.y + this.height * 0.5);
+    ctx.lineTo(cx - 2, this.y + this.height * 0.4);
     ctx.closePath();
     ctx.fill();
+
+    // Cockpit - glowing canopy
+    const cockpitGrad = ctx.createLinearGradient(cx, this.y + 3, cx, this.y + this.height * 0.5);
+    cockpitGrad.addColorStop(0, '#0099dd');
+    cockpitGrad.addColorStop(0.5, CONFIG.COLORS.PLAYER_ACCENT);
+    cockpitGrad.addColorStop(1, '#003355');
+    ctx.fillStyle = cockpitGrad;
+    ctx.beginPath();
+    ctx.moveTo(cx, this.y + 3);
+    ctx.lineTo(cx + 3.5, this.y + this.height * 0.42);
+    ctx.lineTo(cx, this.y + this.height * 0.52);
+    ctx.lineTo(cx - 3.5, this.y + this.height * 0.42);
+    ctx.closePath();
+    ctx.fill();
+
+    // Cockpit glint
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.beginPath();
+    ctx.arc(cx - 1, this.y + 7, 1, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Wing tip lights
+    const wingLightAlpha = 0.5 + Math.sin(this.thrusterPhase * 2) * 0.5;
+    ctx.fillStyle = `rgba(255, 50, 80, ${wingLightAlpha})`;
+    ctx.shadowColor = '#ff3050';
+    ctx.shadowBlur = 4;
+    ctx.beginPath();
+    ctx.arc(cx - this.width / 2 + 1, this.y + this.height * 0.75, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx + this.width / 2 - 1, this.y + this.height * 0.75, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Nose tip glow
+    ctx.fillStyle = 'rgba(0, 229, 255, 0.7)';
+    ctx.shadowColor = CONFIG.COLORS.PLAYER;
+    ctx.shadowBlur = 6;
+    ctx.beginPath();
+    ctx.arc(cx, this.y - 1, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
 
     ctx.restore();
   }
