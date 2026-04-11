@@ -269,6 +269,90 @@ export class ParticleSystem {
     }
   }
 
+  muzzleFlash(x, y) {
+    // Bright flash burst at gun muzzle
+    const p = new Particle(x, y, 0, 0, '#ffe033', 6, 5, 'ring');
+    p.gravity = 0;
+    this.particles.push(p);
+    // Side sparks
+    for (let i = 0; i < 3; i++) {
+      const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.2;
+      const speed = 1.5 + Math.random() * 2;
+      const sp = new Particle(
+        x, y,
+        Math.cos(angle) * speed,
+        Math.sin(angle) * speed,
+        '#ffcc44',
+        5 + Math.random() * 4,
+        0.6,
+        'spark'
+      );
+      sp.gravity = 0;
+      this.particles.push(sp);
+    }
+  }
+
+  bulletImpact(x, y, color) {
+    // Small impact flash where bullet hits
+    const p = new Particle(x, y, 0, 0, color, 8, 3, 'ring');
+    p.gravity = 0;
+    this.particles.push(p);
+    // Tiny debris
+    for (let i = 0; i < 4; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 1 + Math.random() * 2;
+      this.particles.push(new Particle(
+        x, y,
+        Math.cos(angle) * speed,
+        Math.sin(angle) * speed,
+        color,
+        6 + Math.random() * 6,
+        0.5 + Math.random() * 0.5,
+        'circle'
+      ));
+    }
+  }
+
+  chainSplitLightning(x, y, color) {
+    // Forking lightning arcs radiating from split point
+    for (let i = 0; i < 6; i++) {
+      const angle = (Math.PI * 2 * i) / 6 + (Math.random() - 0.5) * 0.5;
+      const speed = 2 + Math.random() * 3;
+      const p = new Particle(
+        x, y,
+        Math.cos(angle) * speed,
+        Math.sin(angle) * speed,
+        color,
+        10 + Math.random() * 8,
+        1.5,
+        'streak'
+      );
+      p.gravity = 0;
+      p.drag = 0.92;
+      this.particles.push(p);
+    }
+    // Central flash
+    const flash = new Particle(x, y, 0, 0, '#ffffff', 8, 8, 'ring');
+    flash.gravity = 0;
+    this.particles.push(flash);
+    // White hot center spark
+    for (let i = 0; i < 8; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 3 + Math.random() * 3;
+      const sp = new Particle(
+        x, y,
+        Math.cos(angle) * speed,
+        Math.sin(angle) * speed,
+        '#ffffff',
+        5 + Math.random() * 5,
+        0.7 + Math.random() * 0.5,
+        'spark'
+      );
+      sp.gravity = 0;
+      this.particles.push(sp);
+    }
+  }
+
   trail(x, y, color) {
     this.particles.push(new Particle(
       x + (Math.random() - 0.5) * 2, y,

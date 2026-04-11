@@ -41,6 +41,9 @@ export class CollisionSystem {
         if (rectsOverlap(bulletRect, segment.hitbox)) {
           bullet.alive = false;
 
+          // Bullet impact effect at hit point
+          particles.bulletImpact(bullet.x + bullet.width / 2, bullet.y, segment.color);
+
           const destroyed = segment.hit();
           if (destroyed) {
             // Shard was destroyed
@@ -51,6 +54,7 @@ export class CollisionSystem {
             if (splitCount > 0) {
               audio.chainSplit();
               scoring.addChainSplitBonus(segment.centerX, segment.centerY);
+              particles.chainSplitLightning(segment.centerX, segment.centerY, segment.color);
             } else {
               audio.shardBreak();
             }
@@ -74,7 +78,7 @@ export class CollisionSystem {
   }
 
   // Check bullets against obstacles (bullets are destroyed)
-  checkBulletsVsObstacles(bullets, obstacles) {
+  checkBulletsVsObstacles(bullets, obstacles, particles) {
     for (const bullet of bullets.bullets) {
       if (!bullet.alive) continue;
 
@@ -87,6 +91,9 @@ export class CollisionSystem {
 
       for (const obs of obstacles.obstacles) {
         if (rectsOverlap(bulletRect, obs.hitbox)) {
+          if (particles) {
+            particles.bulletImpact(bullet.x + bullet.width / 2, bullet.y, '#00e676');
+          }
           bullet.alive = false;
           break;
         }

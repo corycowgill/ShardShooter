@@ -13,6 +13,7 @@ export class Player {
     this.alive = true;
     this.thrusterPhase = 0;
     this.tilt = 0; // visual lean when moving
+    this.trail = []; // afterimage position history
   }
 
   reset() {
@@ -23,6 +24,7 @@ export class Player {
     this.lastFireTime = 0;
     this.alive = true;
     this.tilt = 0;
+    this.trail = [];
   }
 
   update(input, dt) {
@@ -50,6 +52,14 @@ export class Player {
     this.tilt += (targetTilt - this.tilt) * 0.15;
 
     this.x = Math.max(4, Math.min(CONFIG.GAME_WIDTH - this.width - 4, this.x));
+
+    // Store afterimage trail when moving
+    if (Math.abs(moveDir) > 0) {
+      this.trail.push({ x: this.x, y: this.y, tilt: this.tilt });
+      if (this.trail.length > 5) this.trail.shift();
+    } else if (this.trail.length > 0) {
+      this.trail.shift();
+    }
 
     if (this.invincibleTimer > 0) {
       this.invincibleTimer -= dt;
@@ -118,6 +128,26 @@ export class Player {
     ctx.translate(cx, cy);
     ctx.rotate(this.tilt);
     ctx.translate(-cx, -cy);
+
+    // --- Afterimage ghost trail ---
+    for (let i = 0; i < this.trail.length; i++) {
+      const t = this.trail[i];
+      const ga = (i + 1) / (this.trail.length + 1) * 0.15;
+      const tcx = t.x + this.width / 2;
+      ctx.save();
+      ctx.globalAlpha = ga;
+      ctx.translate(tcx, cy);
+      ctx.rotate(t.tilt);
+      ctx.translate(-tcx, -cy);
+      ctx.fillStyle = CONFIG.COLORS.PLAYER;
+      ctx.beginPath();
+      ctx.moveTo(tcx, t.y - 3);
+      ctx.lineTo(tcx + this.width / 2, t.y + this.height * 0.7);
+      ctx.lineTo(tcx - this.width / 2, t.y + this.height * 0.7);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
 
     // --- Energy wing trails (ghostly streaks behind wings when moving) ---
     if (Math.abs(this.tilt) > 0.03) {

@@ -11,6 +11,7 @@ import { PowerUpManager, POWERUP_TYPES } from './powerup.js';
 import { ParticleSystem } from './particle.js';
 import { CollisionSystem } from './collision.js';
 import { UI } from './ui.js';
+import { PostFX } from './postfx.js';
 
 const STATES = {
   MENU: 'menu',
@@ -38,6 +39,7 @@ export class Game {
     this.particles = new ParticleSystem();
     this.collisions = new CollisionSystem();
     this.ui = new UI();
+    this.postfx = new PostFX();
 
     // Game state
     this.state = STATES.MENU;
@@ -199,6 +201,7 @@ export class Game {
       }
 
       Audio.shoot();
+      this.particles.muzzleFlash(cx, baseY + CONFIG.BULLET_HEIGHT);
       this.particles.trail(cx, baseY + CONFIG.BULLET_HEIGHT, CONFIG.COLORS.BULLET);
     }
 
@@ -296,7 +299,7 @@ export class Game {
 
   _handleCollisions() {
     // Bullets vs obstacles
-    this.collisions.checkBulletsVsObstacles(this.bullets, this.obstacles);
+    this.collisions.checkBulletsVsObstacles(this.bullets, this.obstacles, this.particles);
 
     // Bullets vs shards
     const scoring = {
@@ -593,6 +596,9 @@ export class Game {
       // Screen flash overlay
       this.ui.renderScreenFlash(ctx);
 
+      // Active power-up edge tints
+      this.ui.renderPowerupOverlays(ctx, this.powerups.activeEffects);
+
       // HUD
       this.ui.renderHUD(ctx, this.score, this.highScore, this.player.lives, this.wave, this.comboMultiplier);
       this.ui.renderPowerupTimers(ctx, this.powerups.activeEffects);
@@ -613,5 +619,8 @@ export class Game {
     }
 
     ctx.restore();
+
+    // Post-processing pass (after restore so it applies to full frame)
+    this.postfx.render(ctx, this.time, this.shakeTimer > 0);
   }
 }

@@ -18,6 +18,7 @@ export class UI {
     this.powerupNotifyText = '';
     this.powerupNotifyColor = '#ffffff';
     this.muted = false;
+    this.displayScore = 0; // animated rolling score counter
   }
 
   announceWave(wave) {
@@ -72,94 +73,212 @@ export class UI {
 
   renderHUD(ctx, score, highScore, lives, wave, combo) {
     ctx.save();
+    const W = CONFIG.GAME_WIDTH;
 
-    // Score - top left
+    // Animated rolling score counter
+    if (this.displayScore < score) {
+      this.displayScore += Math.ceil((score - this.displayScore) * 0.15);
+      if (this.displayScore > score) this.displayScore = score;
+    }
+
+    // --- HUD top bar background ---
+    const barGrad = ctx.createLinearGradient(0, 0, 0, 42);
+    barGrad.addColorStop(0, 'rgba(0, 0, 20, 0.5)');
+    barGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = barGrad;
+    ctx.fillRect(0, 0, W, 42);
+
+    // Top border line
+    ctx.strokeStyle = 'rgba(0, 229, 255, 0.12)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(0, 42);
+    ctx.lineTo(W, 42);
+    ctx.stroke();
+
+    // Score - top left with glow
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     ctx.font = 'bold 16px "Courier New", monospace';
     ctx.fillStyle = C.UI_SCORE;
     ctx.shadowColor = C.UI_SCORE;
-    ctx.shadowBlur = 4;
-    ctx.fillText(`SCORE ${score}`, 10, 10);
+    ctx.shadowBlur = 6;
+    ctx.fillText(`${this.displayScore}`, 10, 8);
     ctx.shadowBlur = 0;
+    // Score label
+    ctx.font = '8px "Courier New", monospace';
+    ctx.fillStyle = 'rgba(255, 224, 51, 0.6)';
+    ctx.fillText('SCORE', 10, 26);
 
     // High score
-    ctx.font = '10px "Courier New", monospace';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-    ctx.fillText(`HI ${highScore}`, 10, 30);
+    ctx.font = '9px "Courier New", monospace';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.fillText(`HI ${highScore}`, 10, 35);
 
-    // Wave - top center
+    // Wave - top center with decorative brackets
     ctx.textAlign = 'center';
     ctx.font = 'bold 12px "Courier New", monospace';
     ctx.fillStyle = C.UI_TEXT;
-    ctx.fillText(`WAVE ${wave}`, CONFIG.GAME_WIDTH / 2, 10);
+    ctx.fillText(`\u25C0 WAVE ${wave} \u25B6`, W / 2, 8);
+    // Decorative line under wave
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+    ctx.lineWidth = 0.4;
+    ctx.beginPath();
+    ctx.moveTo(W / 2 - 45, 22);
+    ctx.lineTo(W / 2 + 45, 22);
+    ctx.stroke();
 
-    // Lives - top right
-    ctx.textAlign = 'right';
-    for (let i = 0; i < lives; i++) {
-      const lx = CONFIG.GAME_WIDTH - 14 - i * 20;
-      const ly = 14;
-      ctx.fillStyle = C.UI_LIVES;
-      ctx.shadowColor = C.UI_LIVES;
-      ctx.shadowBlur = 4;
-      // Small ship icon
-      ctx.beginPath();
-      ctx.moveTo(lx, ly - 6);
-      ctx.lineTo(lx + 6, ly + 4);
-      ctx.lineTo(lx - 6, ly + 4);
-      ctx.closePath();
-      ctx.fill();
-      ctx.shadowBlur = 0;
+    // Combo fire meter (below wave)
+    if (combo > 1) {
+      const meterW = 70;
+      const meterH = 4;
+      const meterX = W / 2 - meterW / 2;
+      const meterY = 25;
+      const fill = Math.min(1, (combo - 1) / 4);
+
+      // Meter background
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+      ctx.fillRect(meterX, meterY, meterW, meterH);
+
+      // Meter fill — color shifts from yellow to red at high combo
+      const meterGrad = ctx.createLinearGradient(meterX, 0, meterX + meterW, 0);
+      meterGrad.addColorStop(0, '#ffe033');
+      meterGrad.addColorStop(0.5, '#ff8800');
+      meterGrad.addColorStop(1, '#ff2244');
+      ctx.fillStyle = meterGrad;
+      ctx.fillRect(meterX, meterY, meterW * fill, meterH);
+
+      // Meter border
+      ctx.strokeStyle = 'rgba(255, 224, 51, 0.4)';
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(meterX, meterY, meterW, meterH);
+
+      // Combo text
+      ctx.font = '7px "Courier New", monospace';
+      ctx.fillStyle = `rgba(255, 224, 51, 0.7)`;
+      ctx.fillText(`x${combo.toFixed(1)}`, W / 2, meterY + meterH + 7);
     }
 
-    // Combo display
+    // Lives - top right — miniature ship icons with detail
+    for (let i = 0; i < lives; i++) {
+      const lx = W - 14 - i * 18;
+      const ly = 14;
+
+      ctx.save();
+      ctx.translate(lx, ly);
+
+      // Glow
+      ctx.shadowColor = C.UI_LIVES;
+      ctx.shadowBlur = 4;
+
+      // Miniature ship hull
+      ctx.fillStyle = C.UI_LIVES;
+      ctx.beginPath();
+      ctx.moveTo(0, -5);
+      ctx.lineTo(5, 3);
+      ctx.lineTo(3, 4);
+      ctx.lineTo(0, 2);
+      ctx.lineTo(-3, 4);
+      ctx.lineTo(-5, 3);
+      ctx.closePath();
+      ctx.fill();
+
+      // Cockpit
+      ctx.fillStyle = '#005577';
+      ctx.beginPath();
+      ctx.moveTo(0, -3);
+      ctx.lineTo(1.5, 0);
+      ctx.lineTo(0, 1);
+      ctx.lineTo(-1.5, 0);
+      ctx.closePath();
+      ctx.fill();
+
+      // Nose dot
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.beginPath();
+      ctx.arc(0, -4.5, 0.6, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    // Lives label
+    ctx.textAlign = 'right';
+    ctx.font = '7px "Courier New", monospace';
+    ctx.fillStyle = 'rgba(0, 229, 255, 0.5)';
+    ctx.textBaseline = 'top';
+    ctx.fillText('LIVES', W - 8, 24);
+
+    // Combo display (large, center)
     if (this.comboDisplayTimer > 0 && combo > 1) {
       const alpha = Math.min(1, this.comboDisplayTimer / 20);
+      const scale = 1 + (1 - alpha) * 0.3;
+      ctx.save();
       ctx.globalAlpha = alpha;
+      ctx.translate(W / 2, 55);
+      ctx.scale(scale, scale);
       ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
       ctx.font = 'bold 14px "Courier New", monospace';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.fillText(this.comboDisplayText, 1, 1);
       ctx.fillStyle = C.UI_SCORE;
       ctx.shadowColor = C.UI_SCORE;
-      ctx.shadowBlur = 6;
-      ctx.fillText(this.comboDisplayText, CONFIG.GAME_WIDTH / 2, 50);
+      ctx.shadowBlur = 8;
+      ctx.fillText(this.comboDisplayText, 0, 0);
       ctx.shadowBlur = 0;
-      ctx.globalAlpha = 1;
+      ctx.restore();
     }
 
     // Milestone display
     if (this.milestoneTimer > 0) {
       const alpha = Math.min(1, this.milestoneTimer / 30);
+      const scale = 1 + (1 - alpha) * 0.2;
+      ctx.save();
       ctx.globalAlpha = alpha;
+      ctx.translate(W / 2, 75);
+      ctx.scale(scale, scale);
       ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
       ctx.font = 'bold 18px "Courier New", monospace';
       ctx.fillStyle = '#ffffff';
       ctx.shadowColor = C.UI_SCORE;
-      ctx.shadowBlur = 10;
-      ctx.fillText(this.milestoneText, CONFIG.GAME_WIDTH / 2, 70);
+      ctx.shadowBlur = 12;
+      ctx.fillText(this.milestoneText, 0, 0);
       ctx.shadowBlur = 0;
-      ctx.globalAlpha = 1;
+      ctx.restore();
     }
 
     // Power-up pickup notification
     if (this.powerupNotifyTimer > 0) {
       const alpha = Math.min(1, this.powerupNotifyTimer / 30);
+      ctx.save();
       ctx.globalAlpha = alpha;
       ctx.textAlign = 'center';
-      ctx.font = 'bold 13px "Courier New", monospace';
+      ctx.textBaseline = 'middle';
+      // Notification bar background
+      const notifW = 140;
+      ctx.fillStyle = `rgba(0, 0, 0, ${alpha * 0.4})`;
+      ctx.fillRect(W / 2 - notifW / 2, 85, notifW, 18);
+      ctx.strokeStyle = this.powerupNotifyColor + '44';
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(W / 2 - notifW / 2, 85, notifW, 18);
+
+      ctx.font = 'bold 11px "Courier New", monospace';
       ctx.fillStyle = this.powerupNotifyColor;
       ctx.shadowColor = this.powerupNotifyColor;
-      ctx.shadowBlur = 8;
-      ctx.fillText(this.powerupNotifyText, CONFIG.GAME_WIDTH / 2, 90);
+      ctx.shadowBlur = 6;
+      ctx.fillText(this.powerupNotifyText, W / 2, 94);
       ctx.shadowBlur = 0;
-      ctx.globalAlpha = 1;
+      ctx.restore();
     }
 
-    // Pause button (top right, below lives) - large touch target
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = 'bold 16px "Courier New", monospace';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-    ctx.fillText('| |', CONFIG.GAME_WIDTH - 24, 38);
+    // Pause button — stylized icon
+    const pauseAlpha = 0.3;
+    ctx.fillStyle = `rgba(255, 255, 255, ${pauseAlpha})`;
+    ctx.fillRect(W - 30, 33, 3, 10);
+    ctx.fillRect(W - 24, 33, 3, 10);
 
     ctx.restore();
   }
@@ -255,6 +374,56 @@ export class UI {
       ctx.fillRect(0, 0, CONFIG.GAME_WIDTH, CONFIG.GAME_HEIGHT);
       ctx.globalAlpha = 1;
       ctx.restore();
+    }
+  }
+
+  // Active power-up visual overlays — colored edge tints
+  renderPowerupOverlays(ctx, activeEffects) {
+    const W = CONFIG.GAME_WIDTH;
+    const H = CONFIG.GAME_HEIGHT;
+    const EDGE_W = 20;
+
+    const overlays = {
+      rapid_fire: { color: [255, 68, 68], intensity: 0.06 },
+      spread_shot: { color: [68, 170, 255], intensity: 0.05 },
+      shield: { color: [0, 229, 255], intensity: 0.07 },
+    };
+
+    for (const type of Object.keys(activeEffects)) {
+      const ov = overlays[type];
+      if (!ov) continue;
+      const remaining = activeEffects[type];
+      const pulse = 0.5 + Math.sin(Date.now() * 0.004) * 0.5;
+      const alpha = ov.intensity * pulse * Math.min(1, remaining / 1000);
+      const [r, g, b] = ov.color;
+
+      // Left edge
+      const leftGrad = ctx.createLinearGradient(0, 0, EDGE_W, 0);
+      leftGrad.addColorStop(0, `rgba(${r},${g},${b},${alpha})`);
+      leftGrad.addColorStop(1, 'transparent');
+      ctx.fillStyle = leftGrad;
+      ctx.fillRect(0, 0, EDGE_W, H);
+
+      // Right edge
+      const rightGrad = ctx.createLinearGradient(W, 0, W - EDGE_W, 0);
+      rightGrad.addColorStop(0, `rgba(${r},${g},${b},${alpha})`);
+      rightGrad.addColorStop(1, 'transparent');
+      ctx.fillStyle = rightGrad;
+      ctx.fillRect(W - EDGE_W, 0, EDGE_W, H);
+
+      // Top edge
+      const topGrad = ctx.createLinearGradient(0, 0, 0, EDGE_W * 0.7);
+      topGrad.addColorStop(0, `rgba(${r},${g},${b},${alpha * 0.5})`);
+      topGrad.addColorStop(1, 'transparent');
+      ctx.fillStyle = topGrad;
+      ctx.fillRect(0, 0, W, EDGE_W * 0.7);
+
+      // Bottom edge
+      const botGrad = ctx.createLinearGradient(0, H, 0, H - EDGE_W * 0.7);
+      botGrad.addColorStop(0, `rgba(${r},${g},${b},${alpha * 0.5})`);
+      botGrad.addColorStop(1, 'transparent');
+      ctx.fillStyle = botGrad;
+      ctx.fillRect(0, H - EDGE_W * 0.7, W, EDGE_W * 0.7);
     }
   }
 
@@ -702,6 +871,105 @@ export class UI {
       grad.addColorStop(1, 'transparent');
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, W, H);
+    }
+
+    // --- Distant celestial body (planet/moon) ---
+    if (!this._planet) {
+      this._planet = {
+        x: W * (0.15 + Math.random() * 0.2),
+        y: H * (0.1 + Math.random() * 0.15),
+        r: 25 + Math.random() * 15,
+        hue: Math.floor(Math.random() * 360),
+        hasRing: Math.random() > 0.5,
+      };
+      // Space dust particles (tiny fixed specks)
+      this._spaceDust = [];
+      for (let i = 0; i < 40; i++) {
+        this._spaceDust.push({
+          x: Math.random() * W,
+          y: Math.random() * H,
+          size: 0.2 + Math.random() * 0.4,
+          speed: 0.03 + Math.random() * 0.06,
+          alpha: 0.05 + Math.random() * 0.1,
+        });
+      }
+    }
+
+    // Render planet
+    const p = this._planet;
+    const pDrift = Math.sin(time * 0.0001) * 3;
+    const px = p.x + pDrift;
+    const py = p.y;
+
+    // Planet atmosphere glow
+    const atmGrad = ctx.createRadialGradient(px, py, p.r * 0.8, px, py, p.r * 2.2);
+    atmGrad.addColorStop(0, `hsla(${p.hue}, 50%, 40%, 0.04)`);
+    atmGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = atmGrad;
+    ctx.beginPath();
+    ctx.arc(px, py, p.r * 2.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Planet body
+    const pbGrad = ctx.createRadialGradient(px - p.r * 0.3, py - p.r * 0.3, 0, px, py, p.r);
+    pbGrad.addColorStop(0, `hsla(${p.hue}, 30%, 30%, 0.15)`);
+    pbGrad.addColorStop(0.6, `hsla(${p.hue}, 40%, 20%, 0.12)`);
+    pbGrad.addColorStop(1, `hsla(${p.hue}, 50%, 10%, 0.08)`);
+    ctx.fillStyle = pbGrad;
+    ctx.beginPath();
+    ctx.arc(px, py, p.r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Planet surface bands
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(px, py, p.r, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.strokeStyle = `hsla(${p.hue}, 20%, 40%, 0.04)`;
+    ctx.lineWidth = 1;
+    for (let b = -3; b <= 3; b++) {
+      ctx.beginPath();
+      ctx.ellipse(px, py + b * p.r * 0.25, p.r, p.r * 0.08, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Planet terminator (shadow edge)
+    const termGrad = ctx.createLinearGradient(px - p.r, py, px + p.r, py);
+    termGrad.addColorStop(0, 'transparent');
+    termGrad.addColorStop(0.6, 'transparent');
+    termGrad.addColorStop(1, 'rgba(0, 0, 0, 0.12)');
+    ctx.fillStyle = termGrad;
+    ctx.beginPath();
+    ctx.arc(px, py, p.r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Specular highlight
+    ctx.fillStyle = `hsla(${p.hue}, 20%, 80%, 0.06)`;
+    ctx.beginPath();
+    ctx.arc(px - p.r * 0.35, py - p.r * 0.35, p.r * 0.25, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Ring (if present)
+    if (p.hasRing) {
+      ctx.strokeStyle = `hsla(${p.hue}, 30%, 50%, 0.06)`;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.ellipse(px, py, p.r * 1.8, p.r * 0.3, 0.2, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = `hsla(${p.hue}, 30%, 60%, 0.04)`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.ellipse(px, py, p.r * 2.1, p.r * 0.35, 0.2, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Space dust — drifting micro-particles
+    for (const d of this._spaceDust) {
+      d.y += d.speed;
+      if (d.y > H + 1) { d.y = -1; d.x = Math.random() * W; }
+      ctx.fillStyle = `rgba(180, 200, 220, ${d.alpha})`;
+      ctx.fillRect(d.x, d.y, d.size, d.size);
     }
 
     // Parallax star layers — back-to-front
