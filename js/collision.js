@@ -123,11 +123,6 @@ export class CollisionSystem {
       }
     }
 
-    // Check corruption field
-    if (hazardManager.corruption.contains(player.centerX, player.centerY + player.height / 2)) {
-      return true;
-    }
-
     return false;
   }
 

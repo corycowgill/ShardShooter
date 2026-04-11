@@ -333,138 +333,12 @@ export class DivingEnemy extends Hazard {
   }
 }
 
-// Corruption field
-export class CorruptionField {
-  constructor() {
-    this.height = 0;
-    this.active = false;
-    this.maxHeight = 120;
-    this.riseSpeed = CONFIG.HAZARD_CORRUPTION_RISE_SPEED;
-    this.phase = 0;
-    this.bubbles = [];
-  }
-
-  activate() {
-    this.active = true;
-  }
-
-  deactivate() {
-    this.active = false;
-  }
-
-  update() {
-    if (this.active) {
-      this.height = Math.min(this.height + this.riseSpeed, this.maxHeight);
-      // Spawn corruption bubbles
-      if (Math.random() < 0.08 && this.height > 5) {
-        this.bubbles.push({
-          x: Math.random() * CONFIG.GAME_WIDTH,
-          y: CONFIG.GAME_HEIGHT - Math.random() * this.height * 0.5,
-          size: 1 + Math.random() * 3,
-          vy: -0.3 - Math.random() * 0.5,
-          life: 40 + Math.random() * 30,
-        });
-      }
-    } else {
-      this.height = Math.max(this.height - this.riseSpeed * 2, 0);
-    }
-    this.phase += 0.03;
-
-    // Update bubbles
-    for (const b of this.bubbles) {
-      b.y += b.vy;
-      b.life--;
-      b.size *= 0.99;
-    }
-    this.bubbles = this.bubbles.filter(b => b.life > 0 && b.y > this.topY - 20);
-  }
-
-  get topY() {
-    return CONFIG.GAME_HEIGHT - this.height;
-  }
-
-  contains(x, y) {
-    return this.height > 0 && y >= this.topY;
-  }
-
-  render(ctx) {
-    if (this.height <= 0) return;
-
-    ctx.save();
-    const y = this.topY;
-
-    // Multi-layer gradient fill
-    const grad = ctx.createLinearGradient(0, y, 0, CONFIG.GAME_HEIGHT);
-    grad.addColorStop(0, 'rgba(170, 0, 255, 0.05)');
-    grad.addColorStop(0.15, 'rgba(170, 0, 255, 0.15)');
-    grad.addColorStop(0.4, 'rgba(130, 0, 200, 0.3)');
-    grad.addColorStop(1, 'rgba(80, 0, 150, 0.5)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, y, CONFIG.GAME_WIDTH, this.height);
-
-    // Horizontal corruption streaks
-    ctx.globalAlpha = 0.12;
-    for (let i = 0; i < 4; i++) {
-      const streakY = y + (this.height * (i + 1)) / 5;
-      const streakGrad = ctx.createLinearGradient(0, streakY, CONFIG.GAME_WIDTH, streakY);
-      streakGrad.addColorStop(0, 'transparent');
-      streakGrad.addColorStop(0.3 + Math.sin(this.phase + i) * 0.2, '#dd44ff');
-      streakGrad.addColorStop(0.7 + Math.sin(this.phase + i + 1) * 0.2, '#dd44ff');
-      streakGrad.addColorStop(1, 'transparent');
-      ctx.fillStyle = streakGrad;
-      ctx.fillRect(0, streakY - 1, CONFIG.GAME_WIDTH, 2);
-    }
-    ctx.globalAlpha = 1;
-
-    // Bubbles
-    for (const b of this.bubbles) {
-      const alpha = Math.min(1, b.life / 20) * 0.5;
-      ctx.fillStyle = `rgba(200, 100, 255, ${alpha})`;
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Wavy top edge - double line
-    ctx.strokeStyle = CONFIG.COLORS.HAZARD_CORRUPTION;
-    ctx.lineWidth = 2;
-    ctx.shadowColor = CONFIG.COLORS.HAZARD_CORRUPTION;
-    ctx.shadowBlur = 12;
-    ctx.beginPath();
-    for (let x = 0; x <= CONFIG.GAME_WIDTH; x += 3) {
-      const wave = Math.sin(x * 0.03 + this.phase) * 4 +
-                   Math.sin(x * 0.07 + this.phase * 1.5) * 2;
-      if (x === 0) ctx.moveTo(x, y + wave);
-      else ctx.lineTo(x, y + wave);
-    }
-    ctx.stroke();
-
-    // Secondary thinner edge line
-    ctx.strokeStyle = 'rgba(220, 100, 255, 0.3)';
-    ctx.lineWidth = 1;
-    ctx.shadowBlur = 0;
-    ctx.beginPath();
-    for (let x = 0; x <= CONFIG.GAME_WIDTH; x += 3) {
-      const wave = Math.sin(x * 0.04 + this.phase * 1.2 + 1) * 3 +
-                   Math.sin(x * 0.06 + this.phase * 0.8) * 1.5;
-      if (x === 0) ctx.moveTo(x, y + wave + 4);
-      else ctx.lineTo(x, y + wave + 4);
-    }
-    ctx.stroke();
-
-    ctx.restore();
-  }
-}
 
 export class HazardManager {
   constructor() {
     this.hazards = [];
-    this.corruption = new CorruptionField();
     this.spawnTimer = 0;
     this.spawnInterval = CONFIG.HAZARD_SPAWN_INTERVAL_BASE;
-    this.corruptionTimer = 0;
-    this.corruptionInterval = 18000;
-    this.corruptionDuration = 10000;
   }
 
   update(wave, playerX, dt) {
@@ -476,8 +350,6 @@ export class HazardManager {
     }
     this.hazards = this.hazards.filter(h => h.alive);
 
-    this.corruption.update();
-
     this.spawnTimer += dt;
     const interval = Math.max(
       CONFIG.HAZARD_SPAWN_INTERVAL_MIN,
@@ -487,17 +359,6 @@ export class HazardManager {
     if (this.spawnTimer >= interval) {
       this.spawnTimer = 0;
       this._spawnHazard(wave, playerX);
-    }
-
-    if (wave >= 3) {
-      this.corruptionTimer += dt;
-      if (!this.corruption.active && this.corruptionTimer >= this.corruptionInterval) {
-        this.corruption.activate();
-        this.corruptionTimer = 0;
-      } else if (this.corruption.active && this.corruptionTimer >= this.corruptionDuration) {
-        this.corruption.deactivate();
-        this.corruptionTimer = 0;
-      }
     }
   }
 
@@ -515,7 +376,6 @@ export class HazardManager {
   }
 
   render(ctx) {
-    this.corruption.render(ctx);
     for (const h of this.hazards) {
       h.render(ctx);
     }
@@ -523,8 +383,6 @@ export class HazardManager {
 
   clear() {
     this.hazards = [];
-    this.corruption = new CorruptionField();
     this.spawnTimer = 0;
-    this.corruptionTimer = 0;
   }
 }
