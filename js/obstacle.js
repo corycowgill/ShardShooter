@@ -39,17 +39,18 @@ export class Obstacle {
 
     ctx.save();
 
-    // Base glow underneath
-    const glowGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, s * 1.5);
-    glowGrad.addColorStop(0, `rgba(0, 230, 118, ${0.08 * pulse})`);
+    // Larger, richer base glow
+    const glowGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, s * 2);
+    glowGrad.addColorStop(0, `rgba(0, 230, 118, ${0.1 * pulse})`);
+    glowGrad.addColorStop(0.5, `rgba(0, 180, 90, ${0.04 * pulse})`);
     glowGrad.addColorStop(1, 'transparent');
     ctx.fillStyle = glowGrad;
     ctx.beginPath();
-    ctx.arc(cx, cy, s * 1.5, 0, Math.PI * 2);
+    ctx.arc(cx, cy, s * 2, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.shadowColor = CONFIG.COLORS.OBSTACLE;
-    ctx.shadowBlur = 6 * pulse;
+    ctx.shadowBlur = 8 * pulse;
 
     if (this.variant === 0) {
       this._renderDiamond(ctx, cx, cy, s, pulse);
@@ -58,6 +59,19 @@ export class Obstacle {
     } else {
       this._renderCluster(ctx, cx, cy, s, pulse);
     }
+
+    // Floating energy rune — small orbiting glyph
+    ctx.shadowBlur = 0;
+    const runeAngle = this.pulsePhase * 0.5;
+    const runeR = s * 1.2;
+    const rx = cx + Math.cos(runeAngle) * runeR;
+    const ry = cy + Math.sin(runeAngle) * runeR;
+    ctx.fillStyle = `rgba(0, 230, 118, ${0.2 + pulse * 0.15})`;
+    ctx.font = '7px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const runes = ['\u25C6', '\u25B2', '\u2666', '\u2756'];
+    ctx.fillText(runes[this.variant % runes.length], rx, ry);
 
     ctx.shadowBlur = 0;
     ctx.restore();
@@ -120,8 +134,18 @@ export class Obstacle {
     // Specular dot
     ctx.fillStyle = `rgba(255, 255, 255, ${0.4 + pulse * 0.3})`;
     ctx.beginPath();
-    ctx.arc(cx - s * 0.12, cy - s * 0.2, 1.2, 0, Math.PI * 2);
+    ctx.arc(cx - s * 0.12, cy - s * 0.2, 1.4, 0, Math.PI * 2);
     ctx.fill();
+
+    // Shimmer sweep — animated highlight band
+    const shimmerPos = ((this.pulsePhase * 0.3) % (Math.PI * 2)) / (Math.PI * 2);
+    const shimmerY = cy - s + shimmerPos * s * 2;
+    ctx.globalAlpha = 0.08 + pulse * 0.05;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.ellipse(cx, shimmerY, s * 0.5, 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
   }
 
   _renderPillar(ctx, cx, cy, s, pulse) {

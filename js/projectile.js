@@ -54,41 +54,72 @@ export class ProjectileManager {
 
   render(ctx) {
     for (const b of this.bullets) {
-      const cx = b.x + b.width / 2;
+      const bcx = b.x + b.width / 2;
+      const bcy = b.y + b.height / 2;
       ctx.save();
 
-      // Outer glow trail
-      const trailGrad = ctx.createLinearGradient(cx, b.y - 2, cx, b.y + b.height + 8);
-      trailGrad.addColorStop(0, CONFIG.COLORS.BULLET);
-      trailGrad.addColorStop(0.4, CONFIG.COLORS.BULLET_GLOW);
-      trailGrad.addColorStop(1, 'transparent');
-      ctx.fillStyle = trailGrad;
+      // Rotate to match travel direction
+      const angle = Math.atan2(b.vy, b.vx) + Math.PI / 2;
+      ctx.translate(bcx, bcy);
+      ctx.rotate(angle);
+      // Now draw in local coords: nose at -h/2, tail at +h/2
+      const hw = b.width / 2;
+      const hh = b.height / 2;
+
+      // Comet tail glow (long, fading)
+      const tailLen = 12 + b.age * 0.15;
+      const tailGrad = ctx.createLinearGradient(0, -hh, 0, hh + tailLen);
+      tailGrad.addColorStop(0, CONFIG.COLORS.BULLET);
+      tailGrad.addColorStop(0.2, CONFIG.COLORS.BULLET_GLOW);
+      tailGrad.addColorStop(0.6, CONFIG.COLORS.BULLET_GLOW + '44');
+      tailGrad.addColorStop(1, 'transparent');
+      ctx.fillStyle = tailGrad;
       ctx.beginPath();
-      ctx.moveTo(cx - b.width * 0.8, b.y + b.height + 8);
-      ctx.lineTo(cx - b.width / 2, b.y + b.height * 0.3);
-      ctx.quadraticCurveTo(cx, b.y - 3, cx + b.width / 2, b.y + b.height * 0.3);
-      ctx.lineTo(cx + b.width * 0.8, b.y + b.height + 8);
+      ctx.moveTo(-hw * 1.2, hh + tailLen);
+      ctx.lineTo(-hw, hh * 0.3);
+      ctx.quadraticCurveTo(0, -hh - 3, hw, hh * 0.3);
+      ctx.lineTo(hw * 1.2, hh + tailLen);
       ctx.closePath();
       ctx.fill();
 
-      // Bright core
+      // Outer energy halo
+      const haloGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, hw * 4);
+      haloGrad.addColorStop(0, CONFIG.COLORS.BULLET + '33');
+      haloGrad.addColorStop(1, 'transparent');
+      ctx.fillStyle = haloGrad;
+      ctx.beginPath();
+      ctx.arc(0, 0, hw * 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Bright core body
       ctx.shadowColor = CONFIG.COLORS.BULLET;
-      ctx.shadowBlur = 8;
+      ctx.shadowBlur = 10;
       ctx.fillStyle = CONFIG.COLORS.BULLET;
       ctx.beginPath();
-      ctx.moveTo(cx - b.width / 2, b.y + b.height);
-      ctx.lineTo(cx - b.width / 2, b.y + b.height * 0.3);
-      ctx.quadraticCurveTo(cx, b.y - 2, cx + b.width / 2, b.y + b.height * 0.3);
-      ctx.lineTo(cx + b.width / 2, b.y + b.height);
+      ctx.moveTo(-hw, hh);
+      ctx.lineTo(-hw, hh * 0.3);
+      ctx.quadraticCurveTo(0, -hh - 2, hw, hh * 0.3);
+      ctx.lineTo(hw, hh);
       ctx.closePath();
       ctx.fill();
 
       // White hot tip
       ctx.fillStyle = '#ffffff';
       ctx.shadowColor = '#ffffff';
-      ctx.shadowBlur = 4;
+      ctx.shadowBlur = 6;
       ctx.beginPath();
-      ctx.arc(cx, b.y + 1, 1.2, 0, Math.PI * 2);
+      ctx.arc(0, -hh + 1, 1.4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Inner white streak
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.shadowBlur = 0;
+      ctx.beginPath();
+      ctx.moveTo(-hw * 0.3, hh * 0.5);
+      ctx.quadraticCurveTo(0, -hh, hw * 0.3, hh * 0.5);
+      ctx.lineTo(hw * 0.15, hh);
+      ctx.lineTo(-hw * 0.15, hh);
+      ctx.closePath();
       ctx.fill();
 
       ctx.shadowBlur = 0;

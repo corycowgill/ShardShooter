@@ -50,54 +50,82 @@ export class EnergyOrb extends Hazard {
     const pulse = 0.7 + Math.sin(this.phase) * 0.3;
     ctx.save();
 
-    // Orbiting ring
-    ctx.strokeStyle = `rgba(255, 145, 0, ${0.15 + pulse * 0.15})`;
-    ctx.lineWidth = 0.8;
+    // Danger aura — pulsing warning ring
+    const dangerAlpha = 0.08 + Math.sin(this.phase * 2) * 0.06;
+    const dangerGrad = ctx.createRadialGradient(this.x, this.y, this.size, this.x, this.y, this.size * 2.5);
+    dangerGrad.addColorStop(0, `rgba(255, 100, 0, ${dangerAlpha})`);
+    dangerGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = dangerGrad;
     ctx.beginPath();
-    ctx.ellipse(this.x, this.y, this.size * 1.4, this.size * 0.5,
-                this.ringPhase, 0, Math.PI * 2);
-    ctx.stroke();
+    ctx.arc(this.x, this.y, this.size * 2.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Double orbiting rings
+    for (let r = 0; r < 2; r++) {
+      const rPhase = this.ringPhase + r * Math.PI * 0.5;
+      const rAlpha = 0.12 + pulse * 0.12 - r * 0.06;
+      ctx.strokeStyle = `rgba(255, 145, 0, ${rAlpha})`;
+      ctx.lineWidth = 0.8 - r * 0.3;
+      ctx.beginPath();
+      ctx.ellipse(this.x, this.y, this.size * (1.4 + r * 0.3), this.size * (0.5 + r * 0.15),
+                  rPhase, 0, Math.PI * 2);
+      ctx.stroke();
+    }
 
     // Outer aura
     ctx.shadowColor = CONFIG.COLORS.HAZARD_ORB;
-    ctx.shadowBlur = 15 * pulse;
+    ctx.shadowBlur = 18 * pulse;
     const outerGrad = ctx.createRadialGradient(
-      this.x, this.y, 0, this.x, this.y, this.size * 1.3
+      this.x, this.y, 0, this.x, this.y, this.size * 1.4
     );
-    outerGrad.addColorStop(0, `rgba(255, 145, 0, ${0.5 * pulse})`);
-    outerGrad.addColorStop(0.4, `rgba(255, 100, 0, ${0.3 * pulse})`);
-    outerGrad.addColorStop(0.8, `rgba(255, 60, 0, ${0.1 * pulse})`);
+    outerGrad.addColorStop(0, `rgba(255, 160, 30, ${0.55 * pulse})`);
+    outerGrad.addColorStop(0.35, `rgba(255, 100, 0, ${0.35 * pulse})`);
+    outerGrad.addColorStop(0.7, `rgba(255, 50, 0, ${0.12 * pulse})`);
     outerGrad.addColorStop(1, 'transparent');
     ctx.fillStyle = outerGrad;
     ctx.beginPath();
-    ctx.arc(this.x, this.y, this.size * 1.3, 0, Math.PI * 2);
+    ctx.arc(this.x, this.y, this.size * 1.4, 0, Math.PI * 2);
     ctx.fill();
 
-    // Main orb body
+    // Main orb body — richer gradient
     const bodyGrad = ctx.createRadialGradient(
       this.x - this.size * 0.2, this.y - this.size * 0.2, 0,
       this.x, this.y, this.size * 0.8
     );
-    bodyGrad.addColorStop(0, '#ffdd88');
-    bodyGrad.addColorStop(0.4, CONFIG.COLORS.HAZARD_ORB);
-    bodyGrad.addColorStop(1, '#cc5500');
+    bodyGrad.addColorStop(0, '#ffeeaa');
+    bodyGrad.addColorStop(0.3, '#ffdd66');
+    bodyGrad.addColorStop(0.6, CONFIG.COLORS.HAZARD_ORB);
+    bodyGrad.addColorStop(1, '#aa4400');
     ctx.fillStyle = bodyGrad;
     ctx.beginPath();
     ctx.arc(this.x, this.y, this.size * 0.7, 0, Math.PI * 2);
     ctx.fill();
 
-    // Hot core
+    // Surface texture — small bright arcs
     ctx.shadowBlur = 0;
+    ctx.strokeStyle = `rgba(255, 220, 150, ${0.2 + pulse * 0.15})`;
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i < 3; i++) {
+      const a = this.phase * 0.8 + i * Math.PI * 0.7;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size * 0.5, a, a + 0.6);
+      ctx.stroke();
+    }
+
+    // Hot core
     ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = '#ffcc00';
+    ctx.shadowBlur = 4;
     ctx.beginPath();
-    ctx.arc(this.x - 1, this.y - 1, this.size * 0.2, 0, Math.PI * 2);
+    ctx.arc(this.x - 1, this.y - 1, this.size * 0.22, 0, Math.PI * 2);
     ctx.fill();
 
-    // Specular
-    ctx.fillStyle = `rgba(255, 255, 255, ${0.3 + pulse * 0.2})`;
+    // Specular glint
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = `rgba(255, 255, 255, ${0.35 + pulse * 0.25})`;
     ctx.beginPath();
-    ctx.ellipse(this.x - this.size * 0.2, this.y - this.size * 0.25,
-                this.size * 0.15, this.size * 0.08, -0.4, 0, Math.PI * 2);
+    ctx.ellipse(this.x - this.size * 0.2, this.y - this.size * 0.28,
+                this.size * 0.16, this.size * 0.07, -0.4, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.restore();
@@ -147,14 +175,30 @@ export class RicochetHazard extends Hazard {
   render(ctx) {
     ctx.save();
 
-    // Motion trail
-    for (let i = 0; i < this.trailPositions.length; i++) {
-      const t = this.trailPositions[i];
-      const alpha = (i / this.trailPositions.length) * 0.25;
-      const sz = (this.size / 2) * (i / this.trailPositions.length) * 0.6;
-      ctx.fillStyle = `rgba(255, 23, 68, ${alpha})`;
+    // Motion trail — gradient-faded streak
+    if (this.trailPositions.length > 1) {
+      for (let i = 1; i < this.trailPositions.length; i++) {
+        const t0 = this.trailPositions[i - 1];
+        const t1 = this.trailPositions[i];
+        const alpha = (i / this.trailPositions.length) * 0.35;
+        const sz = (this.size / 2) * (i / this.trailPositions.length) * 0.7;
+        // Line segment trail
+        ctx.strokeStyle = `rgba(255, 23, 68, ${alpha})`;
+        ctx.lineWidth = sz * 2;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(t0.x, t0.y);
+        ctx.lineTo(t1.x, t1.y);
+        ctx.stroke();
+      }
+      // Glow around latest trail
+      const last = this.trailPositions[this.trailPositions.length - 1];
+      const tGlow = ctx.createRadialGradient(last.x, last.y, 0, last.x, last.y, this.size);
+      tGlow.addColorStop(0, 'rgba(255, 23, 68, 0.1)');
+      tGlow.addColorStop(1, 'transparent');
+      ctx.fillStyle = tGlow;
       ctx.beginPath();
-      ctx.arc(t.x, t.y, sz, 0, Math.PI * 2);
+      ctx.arc(last.x, last.y, this.size, 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -162,36 +206,47 @@ export class RicochetHazard extends Hazard {
     ctx.rotate(this.rotation);
 
     ctx.shadowColor = CONFIG.COLORS.HAZARD_RICOCHET;
-    ctx.shadowBlur = 10;
+    ctx.shadowBlur = 12;
 
-    // Outer spike ring
+    // Outer spike ring — 12 spikes for more detail
     const s = this.size / 2;
     const spikeGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, s);
-    spikeGrad.addColorStop(0, '#ff6680');
-    spikeGrad.addColorStop(0.5, CONFIG.COLORS.HAZARD_RICOCHET);
-    spikeGrad.addColorStop(1, '#aa0022');
+    spikeGrad.addColorStop(0, '#ff8899');
+    spikeGrad.addColorStop(0.4, '#ff4466');
+    spikeGrad.addColorStop(0.7, CONFIG.COLORS.HAZARD_RICOCHET);
+    spikeGrad.addColorStop(1, '#880015');
     ctx.fillStyle = spikeGrad;
 
     ctx.beginPath();
-    for (let i = 0; i < 8; i++) {
-      const angle = (Math.PI / 4) * i;
-      const outerR = i % 2 === 0 ? s : s * 0.4;
+    for (let i = 0; i < 12; i++) {
+      const angle = (Math.PI * 2 / 12) * i;
+      const outerR = i % 2 === 0 ? s : s * 0.45;
       ctx.lineTo(Math.cos(angle) * outerR, Math.sin(angle) * outerR);
     }
     ctx.closePath();
     ctx.fill();
 
     // Edge highlight
-    ctx.strokeStyle = 'rgba(255, 180, 180, 0.4)';
-    ctx.lineWidth = 0.6;
+    ctx.strokeStyle = 'rgba(255, 200, 200, 0.35)';
+    ctx.lineWidth = 0.5;
     ctx.stroke();
 
-    // Center bright dot
+    // Inner ring detail
+    ctx.strokeStyle = 'rgba(255, 100, 130, 0.3)';
+    ctx.lineWidth = 0.4;
+    ctx.beginPath();
+    ctx.arc(0, 0, s * 0.55, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Center bright dot with glow
     ctx.shadowBlur = 0;
     ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = '#ff4466';
+    ctx.shadowBlur = 4;
     ctx.beginPath();
-    ctx.arc(0, 0, s * 0.2, 0, Math.PI * 2);
+    ctx.arc(0, 0, s * 0.22, 0, Math.PI * 2);
     ctx.fill();
+    ctx.shadowBlur = 0;
 
     ctx.restore();
   }
@@ -245,20 +300,25 @@ export class DivingEnemy extends Hazard {
   render(ctx) {
     ctx.save();
     const s = this.size / 2;
-    const wingFlap = Math.sin(this.wingPhase) * 0.15;
+    const wingFlap = Math.sin(this.wingPhase) * 0.18;
 
     ctx.shadowColor = CONFIG.COLORS.HAZARD_DIVER;
-    ctx.shadowBlur = 10;
+    ctx.shadowBlur = 12;
 
-    // Warning line when hovering
+    // Warning line when hovering — enhanced with pulsing crosshair
     if (this.state === 'hover') {
-      ctx.globalAlpha = 0.15 + Math.sin(this.phase * 4) * 0.15;
+      const warnPulse = 0.15 + Math.sin(this.phase * 4) * 0.15;
+      ctx.globalAlpha = warnPulse;
+
+      // Laser-line beam
       const warnGrad = ctx.createLinearGradient(this.x, this.y + s, this.x, CONFIG.GAME_HEIGHT);
       warnGrad.addColorStop(0, CONFIG.COLORS.HAZARD_DIVER);
+      warnGrad.addColorStop(0.5, '#ff660066');
       warnGrad.addColorStop(1, 'transparent');
       ctx.strokeStyle = warnGrad;
       ctx.lineWidth = 2;
-      ctx.setLineDash([5, 5]);
+      ctx.setLineDash([4, 6]);
+      ctx.lineDashOffset = -this.phase * 8;
       ctx.beginPath();
       ctx.moveTo(this.x, this.y + s);
       ctx.lineTo(this.x, CONFIG.GAME_HEIGHT);
@@ -266,66 +326,123 @@ export class DivingEnemy extends Hazard {
       ctx.setLineDash([]);
       ctx.globalAlpha = 1;
 
-      // Target reticle
-      ctx.strokeStyle = `rgba(255, 234, 0, ${0.3 + Math.sin(this.phase * 4) * 0.2})`;
+      // Target reticle — double ring + crosshair
+      const retAlpha = 0.3 + Math.sin(this.phase * 4) * 0.2;
+      const retY = CONFIG.GAME_HEIGHT - CONFIG.PLAYER_Y_OFFSET;
+      const retR = 8 + Math.sin(this.phase * 3) * 2;
+      ctx.strokeStyle = `rgba(255, 234, 0, ${retAlpha})`;
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.arc(this.x, CONFIG.GAME_HEIGHT - CONFIG.PLAYER_Y_OFFSET, 8, 0, Math.PI * 2);
+      ctx.arc(this.x, retY, retR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(this.x, retY, retR * 0.5, 0, Math.PI * 2);
+      ctx.stroke();
+      // Crosshair lines
+      ctx.beginPath();
+      ctx.moveTo(this.x - retR * 1.3, retY);
+      ctx.lineTo(this.x - retR * 0.6, retY);
+      ctx.moveTo(this.x + retR * 0.6, retY);
+      ctx.lineTo(this.x + retR * 1.3, retY);
+      ctx.moveTo(this.x, retY - retR * 1.3);
+      ctx.lineTo(this.x, retY - retR * 0.6);
+      ctx.moveTo(this.x, retY + retR * 0.6);
+      ctx.lineTo(this.x, retY + retR * 1.3);
       ctx.stroke();
     }
 
-    // Body - angular diving shape
     ctx.translate(this.x, this.y);
 
-    // Wing glow
-    const wingSpan = s * 1.2;
-    ctx.fillStyle = `rgba(255, 234, 0, ${0.15 + Math.sin(this.wingPhase) * 0.1})`;
+    // Wing glow — layered with energy trail
+    const wingSpan = s * 1.3;
+    ctx.fillStyle = `rgba(255, 234, 0, ${0.12 + Math.sin(this.wingPhase) * 0.08})`;
     ctx.beginPath();
     ctx.moveTo(-wingSpan, -s * 0.2 + wingFlap * s);
-    ctx.lineTo(0, s * 0.1);
+    ctx.lineTo(0, s * 0.15);
     ctx.lineTo(wingSpan, -s * 0.2 - wingFlap * s);
     ctx.lineTo(0, -s * 0.5);
     ctx.closePath();
     ctx.fill();
 
-    // Main body
+    // Wing energy lines
+    ctx.strokeStyle = `rgba(255, 200, 0, ${0.25 + Math.sin(this.wingPhase) * 0.15})`;
+    ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(-wingSpan * 0.9, -s * 0.15 + wingFlap * s * 0.8);
+    ctx.lineTo(0, s * 0.05);
+    ctx.lineTo(wingSpan * 0.9, -s * 0.15 - wingFlap * s * 0.8);
+    ctx.stroke();
+
+    // Main body — richer gradient
     const bodyGrad = ctx.createLinearGradient(0, -s, 0, s);
-    bodyGrad.addColorStop(0, '#ffee66');
-    bodyGrad.addColorStop(0.4, CONFIG.COLORS.HAZARD_DIVER);
-    bodyGrad.addColorStop(1, '#cc9900');
+    bodyGrad.addColorStop(0, '#ffee77');
+    bodyGrad.addColorStop(0.3, '#ffdd33');
+    bodyGrad.addColorStop(0.6, CONFIG.COLORS.HAZARD_DIVER);
+    bodyGrad.addColorStop(1, '#bb8800');
     ctx.fillStyle = bodyGrad;
 
     ctx.beginPath();
-    ctx.moveTo(0, s * 1.1);       // Nose (pointing down)
-    ctx.lineTo(-s * 0.8, -s * 0.4);
-    ctx.lineTo(-s * 0.3, -s * 0.6);
-    ctx.lineTo(0, -s * 0.3);
-    ctx.lineTo(s * 0.3, -s * 0.6);
-    ctx.lineTo(s * 0.8, -s * 0.4);
+    ctx.moveTo(0, s * 1.1);
+    ctx.lineTo(-s * 0.85, -s * 0.4);
+    ctx.lineTo(-s * 0.35, -s * 0.65);
+    ctx.lineTo(0, -s * 0.35);
+    ctx.lineTo(s * 0.35, -s * 0.65);
+    ctx.lineTo(s * 0.85, -s * 0.4);
     ctx.closePath();
     ctx.fill();
 
     // Edge highlight
-    ctx.strokeStyle = 'rgba(255, 255, 200, 0.4)';
+    ctx.strokeStyle = 'rgba(255, 255, 200, 0.35)';
     ctx.lineWidth = 0.6;
     ctx.stroke();
 
-    // Engine glow at top
-    ctx.shadowBlur = 0;
-    const engPulse = 0.5 + Math.sin(this.phase * 3) * 0.5;
-    ctx.fillStyle = `rgba(255, 100, 0, ${engPulse * 0.6})`;
+    // Center panel detail
+    ctx.fillStyle = 'rgba(200, 150, 0, 0.3)';
     ctx.beginPath();
-    ctx.arc(0, -s * 0.35, s * 0.2, 0, Math.PI * 2);
+    ctx.moveTo(0, s * 0.8);
+    ctx.lineTo(-s * 0.25, -s * 0.2);
+    ctx.lineTo(s * 0.25, -s * 0.2);
+    ctx.closePath();
     ctx.fill();
 
-    // Nose hot point
+    // Engine glow — dual exhausts
+    ctx.shadowBlur = 0;
+    const engPulse = 0.5 + Math.sin(this.phase * 3) * 0.5;
+    ctx.fillStyle = `rgba(255, 120, 0, ${engPulse * 0.7})`;
+    ctx.beginPath();
+    ctx.arc(-s * 0.2, -s * 0.4, s * 0.15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(s * 0.2, -s * 0.4, s * 0.15, 0, Math.PI * 2);
+    ctx.fill();
+    // Engine white core
+    ctx.fillStyle = `rgba(255, 255, 200, ${engPulse * 0.5})`;
+    ctx.beginPath();
+    ctx.arc(-s * 0.2, -s * 0.4, s * 0.07, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(s * 0.2, -s * 0.4, s * 0.07, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Nose hot point + dive trail
     if (this.state === 'dive') {
       ctx.fillStyle = '#ffffff';
       ctx.shadowColor = CONFIG.COLORS.HAZARD_DIVER;
-      ctx.shadowBlur = 8;
+      ctx.shadowBlur = 10;
       ctx.beginPath();
-      ctx.arc(0, s * 0.9, 1.5, 0, Math.PI * 2);
+      ctx.arc(0, s * 0.95, 2, 0, Math.PI * 2);
       ctx.fill();
+      // Speed streaks beside body
+      ctx.strokeStyle = 'rgba(255, 234, 0, 0.3)';
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.6, -s * 0.3);
+      ctx.lineTo(-s * 0.6, -s * 1.5);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(s * 0.6, -s * 0.3);
+      ctx.lineTo(s * 0.6, -s * 1.5);
+      ctx.stroke();
     }
 
     ctx.shadowBlur = 0;

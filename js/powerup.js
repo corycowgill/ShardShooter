@@ -79,6 +79,7 @@ class PowerUp {
   update() {
     this.y += this.vy;
     this.phase += 0.06;
+    this.rotation = (this.rotation || 0) + 0.02;
     if (this.y > CONFIG.GAME_HEIGHT + 20) {
       this.alive = false;
     }
@@ -95,28 +96,52 @@ class PowerUp {
 
   render(ctx) {
     const pulse = 0.7 + Math.sin(this.phase) * 0.3;
-    const bob = Math.sin(this.phase * 0.7) * 2;
+    const bob = Math.sin(this.phase * 0.7) * 3;
+    const rot = this.rotation || 0;
 
     ctx.save();
     ctx.translate(this.x, this.y + bob);
 
-    // Outer glow
-    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, this.size * 1.5);
-    grad.addColorStop(0, this.def.color + '44');
+    // Sparkle trail particles (drawn behind)
+    for (let i = 0; i < 3; i++) {
+      const age = (this.phase + i * 0.8) % (Math.PI * 2);
+      const sparkAlpha = 0.15 + Math.sin(age) * 0.15;
+      const sx = Math.sin(age * 1.3 + i) * 6;
+      const sy = 4 + i * 3 + Math.sin(age) * 2;
+      ctx.fillStyle = this.def.color;
+      ctx.globalAlpha = sparkAlpha;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 1 + Math.sin(age) * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Outer glow — larger, multi-stop
+    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, this.size * 2);
+    grad.addColorStop(0, this.def.color + '55');
+    grad.addColorStop(0.4, this.def.color + '22');
     grad.addColorStop(1, 'transparent');
     ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.arc(0, 0, this.size * 1.5, 0, Math.PI * 2);
+    ctx.arc(0, 0, this.size * 2, 0, Math.PI * 2);
     ctx.fill();
 
-    // Diamond container
+    // Spinning rotation
+    ctx.rotate(rot);
+
+    // Diamond container — richer gradient fill
     ctx.shadowColor = this.def.color;
-    ctx.shadowBlur = 8 * pulse;
-    ctx.fillStyle = this.def.color + 'cc';
+    ctx.shadowBlur = 10 * pulse;
+
+    const s = this.size * 0.85;
+    const diamGrad = ctx.createLinearGradient(-s, -s, s, s);
+    diamGrad.addColorStop(0, this.def.color + 'ff');
+    diamGrad.addColorStop(0.5, this.def.color + 'cc');
+    diamGrad.addColorStop(1, this.def.color + '88');
+    ctx.fillStyle = diamGrad;
     ctx.strokeStyle = this.def.color;
     ctx.lineWidth = 1.5;
 
-    const s = this.size * 0.8;
     ctx.beginPath();
     ctx.moveTo(0, -s);
     ctx.lineTo(s, 0);
@@ -126,23 +151,62 @@ class PowerUp {
     ctx.fill();
     ctx.stroke();
 
-    // Inner fill
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    // Facet highlights
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
     ctx.beginPath();
-    ctx.moveTo(0, -s * 0.6);
-    ctx.lineTo(s * 0.6, 0);
-    ctx.lineTo(0, s * 0.6);
-    ctx.lineTo(-s * 0.6, 0);
+    ctx.moveTo(0, -s);
+    ctx.lineTo(-s, 0);
+    ctx.lineTo(0, 0);
     ctx.closePath();
     ctx.fill();
 
-    // Glyph
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.beginPath();
+    ctx.moveTo(0, s);
+    ctx.lineTo(s, 0);
+    ctx.lineTo(0, 0);
+    ctx.closePath();
+    ctx.fill();
+
+    // Inner diamond
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.moveTo(0, -s * 0.55);
+    ctx.lineTo(s * 0.55, 0);
+    ctx.lineTo(0, s * 0.55);
+    ctx.lineTo(-s * 0.55, 0);
+    ctx.closePath();
+    ctx.fill();
+
+    // Inner glow core
+    const coreGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, s * 0.4);
+    coreGrad.addColorStop(0, 'rgba(255,255,255,0.25)');
+    coreGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = coreGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, s * 0.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Glyph with shadow
     ctx.shadowBlur = 0;
     ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = this.def.color;
+    ctx.shadowBlur = 4;
     ctx.font = 'bold 10px "Courier New", monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(this.def.glyph, 0, 0);
+    ctx.shadowBlur = 0;
+
+    // Corner sparkles
+    const corners = [[0, -s], [s, 0], [0, s], [-s, 0]];
+    for (let i = 0; i < 4; i++) {
+      const sparkle = 0.3 + Math.sin(this.phase * 2 + i * Math.PI / 2) * 0.3;
+      ctx.fillStyle = `rgba(255, 255, 255, ${sparkle})`;
+      ctx.beginPath();
+      ctx.arc(corners[i][0], corners[i][1], 1.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     ctx.restore();
   }

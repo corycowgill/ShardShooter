@@ -246,6 +246,7 @@ export class Game {
     // Check wave clear
     if (this.shards.totalSegments === 0 && this.state === STATES.PLAYING) {
       this.ui.flash('#00e5ff', 0.15);
+      this.particles.waveClear();
       this._nextWave();
     }
 
@@ -585,7 +586,7 @@ export class Game {
       this.shards.render(ctx);
       this.powerups.render(ctx);
       this.bullets.render(ctx);
-      this.player.render(ctx);
+      this.player.render(ctx, this.powerups.hasEffect(POWERUP_TYPES.SHIELD));
       this.particles.render(ctx);
       this.ui.renderFloatingTexts(ctx);
 
