@@ -11,6 +11,13 @@ export class UI {
     this.comboDisplayText = '';
     this.milestoneTimer = 0;
     this.milestoneText = '';
+    this.floatingTexts = [];
+    this.screenFlash = 0;
+    this.screenFlashColor = '#ffffff';
+    this.powerupNotifyTimer = 0;
+    this.powerupNotifyText = '';
+    this.powerupNotifyColor = '#ffffff';
+    this.muted = false;
   }
 
   announceWave(wave) {
@@ -28,10 +35,39 @@ export class UI {
     this.milestoneTimer = 90;
   }
 
+  addFloatingText(x, y, text, color = C.UI_SCORE) {
+    this.floatingTexts.push({
+      x, y, text, color,
+      life: 45,
+      maxLife: 45,
+      vy: -1.5,
+    });
+  }
+
+  flash(color = '#ffffff', intensity = 0.3) {
+    this.screenFlash = intensity;
+    this.screenFlashColor = color;
+  }
+
+  showPowerupNotify(text, color) {
+    this.powerupNotifyText = text;
+    this.powerupNotifyColor = color;
+    this.powerupNotifyTimer = 90;
+  }
+
   update(dt) {
     if (this.waveAnnounceTimer > 0) this.waveAnnounceTimer -= dt;
     if (this.comboDisplayTimer > 0) this.comboDisplayTimer--;
     if (this.milestoneTimer > 0) this.milestoneTimer--;
+    if (this.powerupNotifyTimer > 0) this.powerupNotifyTimer--;
+    if (this.screenFlash > 0) this.screenFlash *= 0.85;
+
+    for (const ft of this.floatingTexts) {
+      ft.y += ft.vy;
+      ft.vy *= 0.97;
+      ft.life--;
+    }
+    this.floatingTexts = this.floatingTexts.filter(ft => ft.life > 0);
   }
 
   renderHUD(ctx, score, highScore, lives, wave, combo) {
@@ -104,6 +140,20 @@ export class UI {
       ctx.globalAlpha = 1;
     }
 
+    // Power-up pickup notification
+    if (this.powerupNotifyTimer > 0) {
+      const alpha = Math.min(1, this.powerupNotifyTimer / 30);
+      ctx.globalAlpha = alpha;
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 13px "Courier New", monospace';
+      ctx.fillStyle = this.powerupNotifyColor;
+      ctx.shadowColor = this.powerupNotifyColor;
+      ctx.shadowBlur = 8;
+      ctx.fillText(this.powerupNotifyText, CONFIG.GAME_WIDTH / 2, 90);
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
+    }
+
     // Pause button (top right, below lives) - large touch target
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -112,6 +162,91 @@ export class UI {
     ctx.fillText('| |', CONFIG.GAME_WIDTH - 24, 38);
 
     ctx.restore();
+  }
+
+  // Render floating score texts in game world
+  renderFloatingTexts(ctx) {
+    for (const ft of this.floatingTexts) {
+      const alpha = ft.life / ft.maxLife;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = 'bold 11px "Courier New", monospace';
+      ctx.fillStyle = ft.color;
+      ctx.shadowColor = ft.color;
+      ctx.shadowBlur = 4;
+      ctx.fillText(ft.text, ft.x, ft.y);
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+  }
+
+  // Render active power-up timers bar at bottom of HUD
+  renderPowerupTimers(ctx, activeEffects) {
+    const types = Object.keys(activeEffects);
+    if (types.length === 0) return;
+
+    ctx.save();
+    const barY = CONFIG.GAME_HEIGHT - 18;
+    const barH = 12;
+    const gap = 4;
+    const totalW = types.length * 60 + (types.length - 1) * gap;
+    let startX = (CONFIG.GAME_WIDTH - totalW) / 2;
+
+    const COLORS = {
+      rapid_fire: '#ff4444',
+      spread_shot: '#44aaff',
+      shield: '#00e5ff',
+    };
+    const LABELS = {
+      rapid_fire: 'RAPID',
+      spread_shot: 'SPREAD',
+      shield: 'SHIELD',
+    };
+
+    for (const type of types) {
+      const color = COLORS[type] || '#ffffff';
+      const label = LABELS[type] || type;
+
+      // Bar background
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(startX, barY, 60, barH);
+
+      // Bar fill (visual timer, assume max 7000ms)
+      const pct = Math.min(1, activeEffects[type] / 7000);
+      ctx.fillStyle = color + '88';
+      ctx.fillRect(startX, barY, 60 * pct, barH);
+
+      // Border
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(startX, barY, 60, barH);
+
+      // Label
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '8px "Courier New", monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, startX + 30, barY + barH / 2);
+
+      startX += 60 + gap;
+    }
+
+    ctx.restore();
+  }
+
+  // Full-screen flash overlay
+  renderScreenFlash(ctx) {
+    if (this.screenFlash > 0.01) {
+      ctx.save();
+      ctx.globalAlpha = this.screenFlash;
+      ctx.fillStyle = this.screenFlashColor;
+      ctx.fillRect(0, 0, CONFIG.GAME_WIDTH, CONFIG.GAME_HEIGHT);
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
   }
 
   renderWaveAnnounce(ctx) {

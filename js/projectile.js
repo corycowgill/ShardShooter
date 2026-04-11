@@ -2,20 +2,23 @@
 import { CONFIG } from './config.js';
 
 export class Projectile {
-  constructor(x, y) {
+  constructor(x, y, angle = 0) {
     this.x = x;
     this.y = y;
     this.width = CONFIG.BULLET_WIDTH;
     this.height = CONFIG.BULLET_HEIGHT;
     this.speed = CONFIG.BULLET_SPEED;
+    this.vx = Math.sin(angle) * this.speed;
+    this.vy = -Math.cos(angle) * this.speed;
     this.alive = true;
     this.age = 0;
   }
 
   update() {
-    this.y -= this.speed;
+    this.x += this.vx;
+    this.y += this.vy;
     this.age++;
-    if (this.y + this.height < 0) {
+    if (this.y + this.height < 0 || this.x < -10 || this.x > CONFIG.GAME_WIDTH + 10) {
       this.alive = false;
     }
   }
@@ -36,6 +39,10 @@ export class ProjectileManager {
 
   add(x, y) {
     this.bullets.push(new Projectile(x, y));
+  }
+
+  addAngled(x, y, angle) {
+    this.bullets.push(new Projectile(x, y, angle));
   }
 
   update() {

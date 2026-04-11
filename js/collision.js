@@ -50,12 +50,12 @@ export class CollisionSystem {
 
             if (splitCount > 0) {
               audio.chainSplit();
-              scoring.addChainSplitBonus();
+              scoring.addChainSplitBonus(segment.centerX, segment.centerY);
             } else {
               audio.shardBreak();
             }
 
-            scoring.addShardKill();
+            scoring.addShardKill(segment.centerX, segment.centerY);
             particles.scorePopup(segment.centerX, segment.centerY);
 
             results.push({
