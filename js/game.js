@@ -110,6 +110,7 @@ export class Game {
   }
 
   _update(dt) {
+    this.input.pollGamepad();
     this.ui.update(dt);
 
     switch (this.state) {

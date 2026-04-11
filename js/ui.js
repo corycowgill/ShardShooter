@@ -200,14 +200,14 @@ export class UI {
       ctx.fillText('TOUCH & DRAG TO MOVE', CONFIG.GAME_WIDTH / 2, CONFIG.GAME_HEIGHT * 0.76);
       ctx.fillText('AUTO-FIRE ENABLED', CONFIG.GAME_WIDTH / 2, CONFIG.GAME_HEIGHT * 0.80);
     } else {
-      ctx.fillText('\u2190 \u2192 OR A/D TO MOVE', CONFIG.GAME_WIDTH / 2, CONFIG.GAME_HEIGHT * 0.76);
-      ctx.fillText('AUTO-FIRE \u2022 P TO PAUSE', CONFIG.GAME_WIDTH / 2, CONFIG.GAME_HEIGHT * 0.80);
+      ctx.fillText('\u2190 \u2192 / A D / GAMEPAD TO MOVE', CONFIG.GAME_WIDTH / 2, CONFIG.GAME_HEIGHT * 0.76);
+      ctx.fillText('AUTO-FIRE \u2022 P / START TO PAUSE', CONFIG.GAME_WIDTH / 2, CONFIG.GAME_HEIGHT * 0.80);
     }
 
     ctx.font = '10px "Courier New", monospace';
     ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
     ctx.fillText('DESTROY SHARD CHAINS \u2022 SPLIT THEM APART', CONFIG.GAME_WIDTH / 2, CONFIG.GAME_HEIGHT * 0.88);
-    ctx.fillText('SURVIVE THE CHAOS', CONFIG.GAME_WIDTH / 2, CONFIG.GAME_HEIGHT * 0.92);
+    ctx.fillText('GAMEPAD SUPPORTED', CONFIG.GAME_WIDTH / 2, CONFIG.GAME_HEIGHT * 0.92);
 
     ctx.restore();
 

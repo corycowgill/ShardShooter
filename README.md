@@ -23,13 +23,21 @@ Use the "Live Server" extension — right-click `index.html` → Open with Live 
 
 ## Controls
 
-### Desktop
+### Desktop (keyboard)
 | Key | Action |
 |-----|--------|
 | Arrow Left / A | Move left |
 | Arrow Right / D | Move right |
-| Space / Arrow Up | Fire |
+| Auto-fire | Always on |
 | P / Escape | Pause |
+
+### Xbox / Gamepad
+| Input | Action |
+|-------|--------|
+| Left Stick / D-Pad | Move (analog) |
+| A / X / RB / RT | (auto-fire always on) |
+| Start / Menu | Pause |
+| A | Confirm (menus) |
 
 ### Mobile / Touch
 - **Touch and drag** horizontally to move
