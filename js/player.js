@@ -14,6 +14,11 @@ export class Player {
     this.thrusterPhase = 0;
     this.tilt = 0; // visual lean when moving
     this.trail = []; // afterimage position history
+    this.dashTimer = 0;
+    this.dashCooldown = 0;
+    this.dashDir = 0;
+    this._lastDashInput = false;
+    this.justDashed = false;
   }
 
   reset() {
@@ -25,38 +30,78 @@ export class Player {
     this.alive = true;
     this.tilt = 0;
     this.trail = [];
+    this.dashTimer = 0;
+    this.dashCooldown = 0;
+    this.dashDir = 0;
+    this._lastDashInput = false;
+    this.justDashed = false;
   }
 
   update(input, dt) {
     if (!this.alive) return;
 
+    this.justDashed = false;
     const moveX = input.getMoveX();
     const touchX = input.getTouchTargetX();
 
-    let moveDir = 0;
-    if (touchX !== null) {
-      const targetX = touchX - this.width / 2;
-      const diff = targetX - this.x;
-      if (Math.abs(diff) > CONFIG.TOUCH_DEAD_ZONE) {
-        const step = Math.sign(diff) * Math.min(Math.abs(diff), CONFIG.PLAYER_SPEED * 1.2);
-        this.x += step;
-        moveDir = Math.sign(step);
+    // --- Dash trigger (edge-detected) ---
+    const dashIn = input.isDash();
+    if (dashIn && !this._lastDashInput && this.dashCooldown <= 0 && this.dashTimer <= 0) {
+      // Determine direction: current input direction, fallback to facing/tilt, else right
+      let dir = 0;
+      if (touchX !== null) {
+        const diff = (touchX - this.width / 2) - this.x;
+        dir = Math.sign(diff);
+      } else {
+        dir = Math.sign(moveX);
       }
-    } else if (moveX !== 0) {
-      this.x += moveX * CONFIG.PLAYER_SPEED;
-      moveDir = Math.sign(moveX);
-    }
+      if (dir === 0) dir = Math.sign(this.tilt) || 1;
 
-    // Smooth tilt toward movement direction
-    const targetTilt = moveDir * 0.25;
-    this.tilt += (targetTilt - this.tilt) * 0.15;
+      this.dashDir = dir;
+      this.dashTimer = CONFIG.DASH_DURATION;
+      this.dashCooldown = CONFIG.DASH_COOLDOWN;
+      this.invincibleTimer = Math.max(this.invincibleTimer, CONFIG.DASH_IFRAME_TIME);
+      this.justDashed = true;
+    }
+    this._lastDashInput = dashIn;
+
+    if (this.dashCooldown > 0) this.dashCooldown -= dt;
+
+    let moveDir = 0;
+
+    if (this.dashTimer > 0) {
+      // Active dash: move fast in locked direction, ignore normal movement
+      this.x += this.dashDir * CONFIG.DASH_SPEED;
+      moveDir = this.dashDir;
+      this.dashTimer -= dt;
+      // Exaggerated tilt during dash
+      this.tilt += (this.dashDir * 0.55 - this.tilt) * 0.35;
+    } else {
+      if (touchX !== null) {
+        const targetX = touchX - this.width / 2;
+        const diff = targetX - this.x;
+        if (Math.abs(diff) > CONFIG.TOUCH_DEAD_ZONE) {
+          const step = Math.sign(diff) * Math.min(Math.abs(diff), CONFIG.PLAYER_SPEED * 1.2);
+          this.x += step;
+          moveDir = Math.sign(step);
+        }
+      } else if (moveX !== 0) {
+        this.x += moveX * CONFIG.PLAYER_SPEED;
+        moveDir = Math.sign(moveX);
+      }
+
+      // Smooth tilt toward movement direction
+      const targetTilt = moveDir * 0.25;
+      this.tilt += (targetTilt - this.tilt) * 0.15;
+    }
 
     this.x = Math.max(4, Math.min(CONFIG.GAME_WIDTH - this.width - 4, this.x));
 
-    // Store afterimage trail when moving
-    if (Math.abs(moveDir) > 0) {
+    // Store afterimage trail when moving (denser during dash)
+    if (Math.abs(moveDir) > 0 || this.dashTimer > 0) {
       this.trail.push({ x: this.x, y: this.y, tilt: this.tilt });
-      if (this.trail.length > 5) this.trail.shift();
+      const maxLen = this.dashTimer > 0 ? 10 : 5;
+      if (this.trail.length > maxLen) this.trail.shift();
     } else if (this.trail.length > 0) {
       this.trail.shift();
     }
@@ -66,6 +111,15 @@ export class Player {
     }
 
     this.thrusterPhase += 0.18;
+  }
+
+  get dashReady() {
+    return this.dashCooldown <= 0 && this.dashTimer <= 0;
+  }
+
+  get dashCooldownPct() {
+    if (this.dashCooldown <= 0) return 1;
+    return 1 - this.dashCooldown / CONFIG.DASH_COOLDOWN;
   }
 
   hit() {

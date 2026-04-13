@@ -49,10 +49,12 @@ export class Game {
     this.combo = 0;
     this.comboMultiplier = 1;
     this.comboTimer = 0;
+    this.lastComboMilestone = 0;
     this.isNewHighScore = false;
     this.lastScoreMilestone = 0;
     this.lastLifeMilestone = 0;
     this.totalShardsDestroyed = 0;
+    this.flawlessWave = true;
 
     // Timing
     this.lastTime = 0;
@@ -185,7 +187,9 @@ export class Game {
     const now = performance.now();
     const rapidFire = this.powerups.hasEffect(POWERUP_TYPES.RAPID_FIRE);
     const spreadShot = this.powerups.hasEffect(POWERUP_TYPES.SPREAD_SHOT);
+    const pierceShot = this.powerups.hasEffect(POWERUP_TYPES.PIERCE);
     const fireRate = rapidFire ? CONFIG.FIRE_RATE * 0.4 : CONFIG.FIRE_RATE;
+    const pierceCount = pierceShot ? 3 : 0;
 
     if (this.player.alive && now - this.player.lastFireTime >= fireRate) {
       this.player.lastFireTime = now;
@@ -193,12 +197,12 @@ export class Game {
       const baseY = this.player.y - CONFIG.BULLET_HEIGHT;
 
       // Center shot
-      this.bullets.add(cx - CONFIG.BULLET_WIDTH / 2, baseY);
+      this.bullets.add(cx - CONFIG.BULLET_WIDTH / 2, baseY, pierceCount);
 
       if (spreadShot) {
         // Two angled side shots
-        this.bullets.addAngled(cx - 8, baseY + 3, -0.15);
-        this.bullets.addAngled(cx + 5, baseY + 3, 0.15);
+        this.bullets.addAngled(cx - 8, baseY + 3, -0.15, pierceCount);
+        this.bullets.addAngled(cx + 5, baseY + 3, 0.15, pierceCount);
       }
 
       Audio.shoot();
@@ -239,6 +243,7 @@ export class Game {
       if (this.comboTimer <= 0) {
         this.combo = 0;
         this.comboMultiplier = 1;
+        this.lastComboMilestone = 0;
       }
     }
 
@@ -252,12 +257,26 @@ export class Game {
     if (this.shards.totalSegments === 0 && this.state === STATES.PLAYING) {
       this.ui.flash('#00e5ff', 0.15);
       this.particles.waveClear();
+
+      // Flawless bonus (only from wave 2+)
+      if (this.flawlessWave && this.wave > 0) {
+        this.score += CONFIG.FLAWLESS_WAVE_BONUS;
+        this.ui.addFloatingText(
+          CONFIG.GAME_WIDTH / 2, CONFIG.GAME_HEIGHT / 2,
+          `FLAWLESS +${CONFIG.FLAWLESS_WAVE_BONUS}`,
+          '#ffe033'
+        );
+        this.ui.flash('#ffe033', 0.2);
+        Audio.scoreMilestone();
+      }
+
       this._nextWave();
     }
 
     // Shard chains reaching bottom
     if (this.shards.hasReachedBottom()) {
       if (!this.powerups.hasEffect(POWERUP_TYPES.SHIELD) && this.player.hit()) {
+        this.flawlessWave = false;
         Audio.playerHit();
         this.particles.playerHitEffect(this.player.centerX, this.player.centerY);
         this._shake(CONFIG.SHAKE_INTENSITY * 1.5, CONFIG.SHAKE_DURATION * 2);
@@ -327,6 +346,9 @@ export class Game {
           this.ui.flash(CONFIG.COLORS.UI_SCORE, 0.1);
         }
 
+        // Combo streak milestone rewards
+        this._checkComboMilestones(x, y);
+
         // Power-up drop chance
         this.powerups.trySpawn(x, y);
       },
@@ -346,6 +368,7 @@ export class Game {
     const shieldActive = this.powerups.hasEffect(POWERUP_TYPES.SHIELD);
     if (!shieldActive && this.collisions.checkPlayerVsShards(this.player, this.shards)) {
       if (this.player.hit()) {
+        this.flawlessWave = false;
         Audio.playerHit();
         this.particles.playerHitEffect(this.player.centerX, this.player.centerY);
         this._shake(CONFIG.SHAKE_INTENSITY, CONFIG.SHAKE_DURATION);
@@ -359,6 +382,7 @@ export class Game {
     // Player vs hazards
     if (!shieldActive && this.collisions.checkPlayerVsHazards(this.player, this.hazards)) {
       if (this.player.hit()) {
+        this.flawlessWave = false;
         Audio.playerHit();
         this.particles.playerHitEffect(this.player.centerX, this.player.centerY);
         this._shake(CONFIG.SHAKE_INTENSITY, CONFIG.SHAKE_DURATION);
@@ -385,6 +409,7 @@ export class Game {
       case POWERUP_TYPES.SPREAD_SHOT:
       case POWERUP_TYPES.SHIELD:
       case POWERUP_TYPES.TIME_SLOW:
+      case POWERUP_TYPES.PIERCE:
         this.powerups.activateEffect(collected.type);
         this.ui.showPowerupNotify(collected.def.description, collected.def.color);
         break;
@@ -458,6 +483,8 @@ export class Game {
     this.lastScoreMilestone = 0;
     this.lastLifeMilestone = 0;
     this.totalShardsDestroyed = 0;
+    this.lastComboMilestone = 0;
+    this.flawlessWave = true;
 
     this.player.reset();
     this.bullets.clear();
@@ -474,6 +501,7 @@ export class Game {
   _nextWave() {
     this.wave++;
     this.score += CONFIG.WAVE_CLEAR_BONUS * (this.wave > 1 ? 1 : 0);
+    this.flawlessWave = true;
 
     // Generate obstacles
     this.obstacles.generate(this.wave);
@@ -615,6 +643,20 @@ export class Game {
     this.shakeTimer = Math.max(this.shakeTimer, duration);
   }
 
+  _checkComboMilestones(x, y) {
+    for (const m of CONFIG.COMBO_STREAK_BONUSES) {
+      if (this.combo === m.threshold && this.lastComboMilestone < m.threshold) {
+        this.lastComboMilestone = m.threshold;
+        this.score += m.points;
+        this.ui.addFloatingText(x, y - 20, `${m.threshold} STREAK +${m.points}`, '#ffaa00');
+        this.ui.flash('#ffaa00', 0.18);
+        this._shake(3, 120);
+        Audio.scoreMilestone();
+        break;
+      }
+    }
+  }
+
   _checkScoreMilestones() {
     const milestone = Math.floor(this.score / 500) * 500;
     if (milestone > this.lastScoreMilestone && milestone > 0) {
@@ -695,7 +737,10 @@ export class Game {
       this.ui.renderPowerupOverlays(ctx, this.powerups.activeEffects);
 
       // HUD
-      this.ui.renderHUD(ctx, this.score, this.highScore, this.player.lives, this.wave, this.comboMultiplier);
+      this.ui.renderHUD(ctx, this.score, this.highScore, this.player.lives, this.wave, this.comboMultiplier, {
+        ready: this.player.dashReady,
+        pct: this.player.dashCooldownPct,
+      });
       this.ui.renderPowerupTimers(ctx, this.powerups.activeEffects);
 
       if (this.state === STATES.WAVE_INTRO) {

@@ -37,9 +37,17 @@ export class CollisionSystem {
 
       for (const { chain, segment } of shardManager.getAllSegments()) {
         if (!segment.alive) continue;
+        if (bullet.hitThisFrame && bullet.hitThisFrame.has(segment)) continue;
 
         if (rectsOverlap(bulletRect, segment.hitbox)) {
-          bullet.alive = false;
+          if (bullet.hitThisFrame) bullet.hitThisFrame.add(segment);
+
+          // Pierce behavior: stay alive if bullet has pierce charges
+          if (bullet.pierces > 0) {
+            bullet.pierces--;
+          } else {
+            bullet.alive = false;
+          }
 
           // Bullet impact effect at hit point
           particles.bulletImpact(bullet.x + bullet.width / 2, bullet.y, segment.color);
@@ -69,7 +77,9 @@ export class CollisionSystem {
               splitCount,
             });
           }
-          break; // bullet can only hit one target
+
+          // Piercing bullets keep going; normal bullets stop
+          if (!bullet.alive) break;
         }
       }
     }

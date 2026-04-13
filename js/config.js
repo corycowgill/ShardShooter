@@ -12,6 +12,12 @@ export const CONFIG = {
   PLAYER_INVINCIBLE_TIME: 2000,
   PLAYER_Y_OFFSET: 60, // distance from bottom
 
+  // Dash
+  DASH_SPEED: 14,
+  DASH_DURATION: 140,     // ms of active dash motion
+  DASH_COOLDOWN: 1200,    // ms before dash is ready again
+  DASH_IFRAME_TIME: 260,  // ms of invulnerability during dash
+
   // Shooting
   FIRE_RATE: 320,
   BULLET_SPEED: 7,
@@ -60,6 +66,12 @@ export const CONFIG = {
   COMBO_MULTIPLIER_STEP: 0.5,
   COMBO_MAX_MULTIPLIER: 5,
   WAVE_CLEAR_BONUS: 200,
+  FLAWLESS_WAVE_BONUS: 300,
+  COMBO_STREAK_BONUSES: [
+    { threshold: 10, points: 100 },
+    { threshold: 25, points: 300 },
+    { threshold: 50, points: 750 },
+  ],
 
   // Particles
   PARTICLE_MAX: 400,

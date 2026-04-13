@@ -78,7 +78,7 @@ export class UI {
     this.floatingTexts = this.floatingTexts.filter(ft => ft.life > 0);
   }
 
-  renderHUD(ctx, score, highScore, lives, wave, combo) {
+  renderHUD(ctx, score, highScore, lives, wave, combo, dashInfo = null) {
     ctx.save();
     const W = CONFIG.GAME_WIDTH;
 
@@ -281,6 +281,43 @@ export class UI {
       ctx.restore();
     }
 
+    // Dash cooldown indicator — bottom-left corner
+    if (dashInfo) {
+      const dx = 12;
+      const dy = CONFIG.GAME_HEIGHT - 32;
+      const dw = 54;
+      const dh = 6;
+      const ready = dashInfo.ready;
+      const pct = ready ? 1 : Math.max(0, Math.min(1, dashInfo.pct || 0));
+      // Label
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.font = 'bold 8px "Courier New", monospace';
+      ctx.fillStyle = ready ? 'rgba(0, 229, 255, 0.9)' : 'rgba(0, 229, 255, 0.35)';
+      ctx.shadowColor = ready ? '#00e5ff' : 'transparent';
+      ctx.shadowBlur = ready ? 4 : 0;
+      ctx.fillText(ready ? 'DASH READY' : 'DASH', dx, dy - 10);
+      ctx.shadowBlur = 0;
+      // Bar background
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+      ctx.fillRect(dx, dy, dw, dh);
+      // Bar fill
+      const fillColor = ready ? '#00e5ff' : '#446688';
+      ctx.fillStyle = fillColor;
+      ctx.fillRect(dx, dy, dw * pct, dh);
+      // Bar border
+      ctx.strokeStyle = ready ? 'rgba(0, 229, 255, 0.8)' : 'rgba(0, 229, 255, 0.25)';
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(dx, dy, dw, dh);
+      // Pulse when ready
+      if (ready) {
+        const pulse = 0.4 + Math.sin(Date.now() * 0.008) * 0.3;
+        ctx.strokeStyle = `rgba(0, 229, 255, ${pulse})`;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(dx - 1, dy - 1, dw + 2, dh + 2);
+      }
+    }
+
     // Pause button — stylized icon
     const pauseAlpha = 0.3;
     ctx.fillStyle = `rgba(255, 255, 255, ${pauseAlpha})`;
@@ -335,12 +372,14 @@ export class UI {
       spread_shot: '#44aaff',
       shield: '#00e5ff',
       time_slow: '#aa66ff',
+      pierce: '#00ff88',
     };
     const LABELS = {
       rapid_fire: 'RAPID',
       spread_shot: 'SPREAD',
       shield: 'SHIELD',
       time_slow: 'SLOW',
+      pierce: 'PIERCE',
     };
 
     for (const type of types) {
@@ -397,6 +436,7 @@ export class UI {
       spread_shot: { color: [68, 170, 255], intensity: 0.05 },
       shield: { color: [0, 229, 255], intensity: 0.07 },
       time_slow: { color: [170, 102, 255], intensity: 0.07 },
+      pierce: { color: [0, 255, 136], intensity: 0.05 },
     };
 
     for (const type of Object.keys(activeEffects)) {

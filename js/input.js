@@ -196,6 +196,13 @@ export class Input {
     return Math.max(-1, Math.min(1, dx));
   }
 
+  // Raw dash input — player handles edge detection
+  isDash() {
+    return !!(this.keys['ShiftLeft'] || this.keys['ShiftRight'] || this.keys['KeyC']
+      || this.gpButtons[1]  // B
+      || this.gpButtons[4]); // LB
+  }
+
   isFiring() {
     return this.keys['Space'] || this.keys['ArrowUp'] || this.keys['KeyW'] || this.touchActive
       || this.gpButtons[0]   // A

@@ -2,7 +2,7 @@
 import { CONFIG } from './config.js';
 
 export class Projectile {
-  constructor(x, y, angle = 0) {
+  constructor(x, y, angle = 0, pierces = 0) {
     this.x = x;
     this.y = y;
     this.width = CONFIG.BULLET_WIDTH;
@@ -12,6 +12,8 @@ export class Projectile {
     this.vy = -Math.cos(angle) * this.speed;
     this.alive = true;
     this.age = 0;
+    this.pierces = pierces; // how many additional shards this bullet can pass through
+    this.hitThisFrame = new Set(); // prevent double-hit on same segment
   }
 
   update() {
@@ -37,17 +39,18 @@ export class ProjectileManager {
     this.bullets = [];
   }
 
-  add(x, y) {
-    this.bullets.push(new Projectile(x, y));
+  add(x, y, pierces = 0) {
+    this.bullets.push(new Projectile(x, y, 0, pierces));
   }
 
-  addAngled(x, y, angle) {
-    this.bullets.push(new Projectile(x, y, angle));
+  addAngled(x, y, angle, pierces = 0) {
+    this.bullets.push(new Projectile(x, y, angle, pierces));
   }
 
   update() {
     for (const b of this.bullets) {
       b.update();
+      if (b.hitThisFrame) b.hitThisFrame.clear();
     }
     this.bullets = this.bullets.filter(b => b.alive);
   }
@@ -56,6 +59,9 @@ export class ProjectileManager {
     for (const b of this.bullets) {
       const bcx = b.x + b.width / 2;
       const bcy = b.y + b.height / 2;
+      const isPierce = b.pierces > 0;
+      const bodyColor = isPierce ? '#99ffcc' : CONFIG.COLORS.BULLET;
+      const glowColor = isPierce ? '#00ff88' : CONFIG.COLORS.BULLET_GLOW;
       ctx.save();
 
       // Rotate to match travel direction
@@ -69,9 +75,9 @@ export class ProjectileManager {
       // Comet tail glow (long, fading)
       const tailLen = 12 + b.age * 0.15;
       const tailGrad = ctx.createLinearGradient(0, -hh, 0, hh + tailLen);
-      tailGrad.addColorStop(0, CONFIG.COLORS.BULLET);
-      tailGrad.addColorStop(0.2, CONFIG.COLORS.BULLET_GLOW);
-      tailGrad.addColorStop(0.6, CONFIG.COLORS.BULLET_GLOW + '44');
+      tailGrad.addColorStop(0, bodyColor);
+      tailGrad.addColorStop(0.2, glowColor);
+      tailGrad.addColorStop(0.6, glowColor + '44');
       tailGrad.addColorStop(1, 'transparent');
       ctx.fillStyle = tailGrad;
       ctx.beginPath();
@@ -84,7 +90,7 @@ export class ProjectileManager {
 
       // Outer energy halo
       const haloGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, hw * 4);
-      haloGrad.addColorStop(0, CONFIG.COLORS.BULLET + '33');
+      haloGrad.addColorStop(0, bodyColor + '33');
       haloGrad.addColorStop(1, 'transparent');
       ctx.fillStyle = haloGrad;
       ctx.beginPath();
@@ -92,9 +98,9 @@ export class ProjectileManager {
       ctx.fill();
 
       // Bright core body
-      ctx.shadowColor = CONFIG.COLORS.BULLET;
-      ctx.shadowBlur = 10;
-      ctx.fillStyle = CONFIG.COLORS.BULLET;
+      ctx.shadowColor = bodyColor;
+      ctx.shadowBlur = isPierce ? 14 : 10;
+      ctx.fillStyle = bodyColor;
       ctx.beginPath();
       ctx.moveTo(-hw, hh);
       ctx.lineTo(-hw, hh * 0.3);

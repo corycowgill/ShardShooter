@@ -9,6 +9,7 @@ export const POWERUP_TYPES = {
   SCORE_BURST: 'score_burst',
   BOMB: 'bomb',
   TIME_SLOW: 'time_slow',
+  PIERCE: 'pierce',
 };
 
 const POWERUP_DEFS = {
@@ -54,6 +55,12 @@ const POWERUP_DEFS = {
     duration: 5000,
     description: 'TIME SLOW',
   },
+  [POWERUP_TYPES.PIERCE]: {
+    color: '#00ff88',
+    glyph: 'P',
+    duration: 6000,
+    description: 'PIERCE SHOT',
+  },
 };
 
 // Drop chance: ~9% per shard destroyed
@@ -61,12 +68,13 @@ const DROP_CHANCE = 0.09;
 
 // Weighted type selection
 const TYPE_WEIGHTS = [
-  { type: POWERUP_TYPES.RAPID_FIRE, weight: 24 },
-  { type: POWERUP_TYPES.SPREAD_SHOT, weight: 20 },
-  { type: POWERUP_TYPES.SHIELD, weight: 16 },
-  { type: POWERUP_TYPES.SCORE_BURST, weight: 14 },
-  { type: POWERUP_TYPES.BOMB, weight: 10 },
-  { type: POWERUP_TYPES.TIME_SLOW, weight: 10 },
+  { type: POWERUP_TYPES.RAPID_FIRE, weight: 20 },
+  { type: POWERUP_TYPES.SPREAD_SHOT, weight: 18 },
+  { type: POWERUP_TYPES.PIERCE, weight: 14 },
+  { type: POWERUP_TYPES.SHIELD, weight: 14 },
+  { type: POWERUP_TYPES.SCORE_BURST, weight: 12 },
+  { type: POWERUP_TYPES.BOMB, weight: 8 },
+  { type: POWERUP_TYPES.TIME_SLOW, weight: 8 },
   { type: POWERUP_TYPES.EXTRA_LIFE, weight: 6 },
 ];
 
