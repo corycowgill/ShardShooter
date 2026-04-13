@@ -32,11 +32,11 @@ export class EnergyOrb extends Hazard {
     this.ringPhase = Math.random() * Math.PI * 2;
   }
 
-  update() {
-    this.time += 0.03;
+  update(timeScale = 1) {
+    this.time += 0.03 * timeScale;
     this.x = this.baseX + Math.sin(this.time * 2) * this.amplitude;
-    this.baseX += this.vx * 0.3;
-    this.y += this.vy;
+    this.baseX += this.vx * 0.3 * timeScale;
+    this.y += this.vy * timeScale;
     this.phase += 0.05;
     this.ringPhase += 0.04;
 
@@ -146,13 +146,13 @@ export class RicochetHazard extends Hazard {
     this.trailPositions = [];
   }
 
-  update() {
+  update(timeScale = 1) {
     // Store trail
     this.trailPositions.push({ x: this.x, y: this.y });
     if (this.trailPositions.length > 6) this.trailPositions.shift();
 
-    this.x += this.vx;
-    this.y += this.vy;
+    this.x += this.vx * timeScale;
+    this.y += this.vy * timeScale;
     this.rotation += 0.15;
     this.phase += 0.08;
 
@@ -270,26 +270,26 @@ export class DivingEnemy extends Hazard {
     this.targetX = playerX;
   }
 
-  update() {
+  update(timeScale = 1) {
     this.phase += 0.06;
     this.wingPhase += 0.12;
 
     if (this.state === 'approach') {
-      this.y += this.vy * 0.5;
+      this.y += this.vy * 0.5 * timeScale;
       if (this.y >= this.approachY) {
         this.state = 'hover';
         this.waitTimer = 40;
       }
     } else if (this.state === 'hover') {
       const diff = this.targetX - this.x;
-      this.x += Math.sign(diff) * Math.min(Math.abs(diff), 2);
-      this.waitTimer--;
+      this.x += Math.sign(diff) * Math.min(Math.abs(diff), 2) * timeScale;
+      this.waitTimer -= timeScale;
       if (this.waitTimer <= 0) {
         this.state = 'dive';
       }
     } else if (this.state === 'dive') {
-      this.vy += 0.15;
-      this.y += this.vy;
+      this.vy += 0.15 * timeScale;
+      this.y += this.vy * timeScale;
     }
 
     if (this.y > CONFIG.GAME_HEIGHT + 30) {
@@ -454,18 +454,28 @@ export class DivingEnemy extends Hazard {
 export class HazardManager {
   constructor() {
     this.hazards = [];
+    this.telegraphs = []; // pre-spawn warning markers: { x, type, timer, duration }
     this.spawnTimer = 0;
     this.spawnInterval = CONFIG.HAZARD_SPAWN_INTERVAL_BASE;
   }
 
-  update(wave, playerX, dt) {
+  update(wave, playerX, dt, timeScale = 1) {
     for (const h of this.hazards) {
       if (h.type === 'diver' && h.state === 'hover') {
         h.setTarget(playerX);
       }
-      h.update();
+      h.update(timeScale);
     }
     this.hazards = this.hazards.filter(h => h.alive);
+
+    // Tick telegraphs and resolve them when their time expires
+    for (const t of this.telegraphs) {
+      t.timer -= dt;
+      if (t.timer <= 0) {
+        this._resolveTelegraph(t);
+      }
+    }
+    this.telegraphs = this.telegraphs.filter(t => t.timer > 0);
 
     this.spawnTimer += dt;
     const interval = Math.max(
@@ -475,16 +485,23 @@ export class HazardManager {
 
     if (this.spawnTimer >= interval) {
       this.spawnTimer = 0;
-      this._spawnHazard(wave, playerX);
+      this._scheduleHazard(wave, playerX);
     }
   }
 
-  _spawnHazard(wave, playerX) {
+  _scheduleHazard(wave, playerX) {
     const roll = Math.random();
     const x = 30 + Math.random() * (CONFIG.GAME_WIDTH - 60);
 
     if (wave >= 3 && roll < 0.3) {
-      this.hazards.push(new DivingEnemy(playerX + (Math.random() - 0.5) * 80));
+      // Diver - telegraph above player area for 700ms before spawning
+      const targetX = playerX + (Math.random() - 0.5) * 80;
+      this.telegraphs.push({
+        type: 'diver',
+        x: Math.max(20, Math.min(CONFIG.GAME_WIDTH - 20, targetX)),
+        timer: 700,
+        duration: 700,
+      });
     } else if (wave >= 2 && roll < 0.55) {
       this.hazards.push(new RicochetHazard(x, -10));
     } else {
@@ -492,7 +509,44 @@ export class HazardManager {
     }
   }
 
+  _resolveTelegraph(t) {
+    if (t.type === 'diver') {
+      this.hazards.push(new DivingEnemy(t.x));
+    }
+  }
+
   render(ctx) {
+    // Telegraph markers (warning indicators above enemies)
+    for (const t of this.telegraphs) {
+      const progress = 1 - t.timer / t.duration;
+      const blink = 0.4 + Math.abs(Math.sin(progress * Math.PI * 6)) * 0.6;
+      ctx.save();
+      ctx.globalAlpha = blink;
+      ctx.translate(t.x, 18);
+      // Triangle warning pointing down
+      ctx.fillStyle = '#ffea00';
+      ctx.shadowColor = '#ffea00';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.moveTo(-7, -6);
+      ctx.lineTo(7, -6);
+      ctx.lineTo(0, 6);
+      ctx.closePath();
+      ctx.fill();
+      // Border
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = '#ff8800';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      // Exclamation
+      ctx.fillStyle = '#000';
+      ctx.font = 'bold 8px "Courier New", monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('!', 0, -1);
+      ctx.restore();
+    }
+
     for (const h of this.hazards) {
       h.render(ctx);
     }
@@ -500,6 +554,7 @@ export class HazardManager {
 
   clear() {
     this.hazards = [];
+    this.telegraphs = [];
     this.spawnTimer = 0;
   }
 }

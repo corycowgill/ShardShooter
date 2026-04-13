@@ -7,6 +7,8 @@ export const POWERUP_TYPES = {
   SHIELD: 'shield',
   EXTRA_LIFE: 'extra_life',
   SCORE_BURST: 'score_burst',
+  BOMB: 'bomb',
+  TIME_SLOW: 'time_slow',
 };
 
 const POWERUP_DEFS = {
@@ -40,18 +42,32 @@ const POWERUP_DEFS = {
     duration: 0,
     description: '+500 POINTS',
   },
+  [POWERUP_TYPES.BOMB]: {
+    color: '#ff7733',
+    glyph: 'B',
+    duration: 0,
+    description: 'CRYSTAL BOMB',
+  },
+  [POWERUP_TYPES.TIME_SLOW]: {
+    color: '#aa66ff',
+    glyph: 'T',
+    duration: 5000,
+    description: 'TIME SLOW',
+  },
 };
 
-// Drop chance: ~8% per shard destroyed
-const DROP_CHANCE = 0.08;
+// Drop chance: ~9% per shard destroyed
+const DROP_CHANCE = 0.09;
 
 // Weighted type selection
 const TYPE_WEIGHTS = [
-  { type: POWERUP_TYPES.RAPID_FIRE, weight: 30 },
-  { type: POWERUP_TYPES.SPREAD_SHOT, weight: 25 },
-  { type: POWERUP_TYPES.SHIELD, weight: 20 },
-  { type: POWERUP_TYPES.SCORE_BURST, weight: 18 },
-  { type: POWERUP_TYPES.EXTRA_LIFE, weight: 7 },
+  { type: POWERUP_TYPES.RAPID_FIRE, weight: 24 },
+  { type: POWERUP_TYPES.SPREAD_SHOT, weight: 20 },
+  { type: POWERUP_TYPES.SHIELD, weight: 16 },
+  { type: POWERUP_TYPES.SCORE_BURST, weight: 14 },
+  { type: POWERUP_TYPES.BOMB, weight: 10 },
+  { type: POWERUP_TYPES.TIME_SLOW, weight: 10 },
+  { type: POWERUP_TYPES.EXTRA_LIFE, weight: 6 },
 ];
 
 function pickType() {
@@ -261,6 +277,11 @@ export class PowerUpManager {
 
   hasEffect(type) {
     return (this.activeEffects[type] || 0) > 0;
+  }
+
+  // Time scale for enemies/hazards/shards (1 = normal, <1 slowed)
+  get enemyTimeScale() {
+    return this.hasEffect(POWERUP_TYPES.TIME_SLOW) ? 0.35 : 1;
   }
 
   render(ctx) {

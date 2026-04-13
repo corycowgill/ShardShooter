@@ -264,7 +264,7 @@ export class ShardChain {
     return new ShardChain(segments, dir, speed);
   }
 
-  update(obstacles) {
+  update(obstacles, timeScale = 1) {
     if (!this.alive) return;
 
     this.segments = this.segments.filter(s => s.alive);
@@ -273,7 +273,7 @@ export class ShardChain {
       return;
     }
 
-    const dx = this.speed * this.direction;
+    const dx = this.speed * this.direction * timeScale;
     for (const seg of this.segments) {
       seg.x += dx;
     }
@@ -402,9 +402,9 @@ export class ShardManager {
     this.chains.push(chain);
   }
 
-  update(obstacles) {
+  update(obstacles, timeScale = 1) {
     for (const chain of this.chains) {
-      chain.update(obstacles);
+      chain.update(obstacles, timeScale);
     }
     this.chains = this.chains.filter(c => c.alive && c.segments.length > 0);
   }

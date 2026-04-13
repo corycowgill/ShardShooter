@@ -51,6 +51,7 @@ export class Game {
     this.comboTimer = 0;
     this.isNewHighScore = false;
     this.lastScoreMilestone = 0;
+    this.lastLifeMilestone = 0;
     this.totalShardsDestroyed = 0;
 
     // Timing
@@ -206,10 +207,11 @@ export class Game {
     }
 
     // Update entities
+    const timeScale = this.powerups.enemyTimeScale;
     this.bullets.update();
-    this.shards.update(this.obstacles.obstacles);
+    this.shards.update(this.obstacles.obstacles, timeScale);
     this.obstacles.update();
-    this.hazards.update(this.wave, this.player.centerX, dt);
+    this.hazards.update(this.wave, this.player.centerX, dt, timeScale);
     this.powerups.update(dt);
 
     // Bullet trails
@@ -382,6 +384,7 @@ export class Game {
       case POWERUP_TYPES.RAPID_FIRE:
       case POWERUP_TYPES.SPREAD_SHOT:
       case POWERUP_TYPES.SHIELD:
+      case POWERUP_TYPES.TIME_SLOW:
         this.powerups.activateEffect(collected.type);
         this.ui.showPowerupNotify(collected.def.description, collected.def.color);
         break;
@@ -391,10 +394,55 @@ export class Game {
         break;
       case POWERUP_TYPES.SCORE_BURST:
         this.score += 500;
+        this._checkScoreMilestones();
         this.ui.showPowerupNotify('+500 POINTS!', collected.def.color);
         this.ui.addFloatingText(collected.x, collected.y, '+500', collected.def.color);
         break;
+      case POWERUP_TYPES.BOMB:
+        this._detonateBomb();
+        this.ui.showPowerupNotify('CRYSTAL BOMB!', collected.def.color);
+        break;
     }
+  }
+
+  // Destroys all on-screen shards and hazards, awarding score per shard
+  _detonateBomb() {
+    Audio.shardBreak();
+    this._shake(CONFIG.SHAKE_INTENSITY * 2, CONFIG.SHAKE_DURATION * 2);
+    this.ui.flash('#ff7733', 0.4);
+
+    // Big central explosion
+    const cx = CONFIG.GAME_WIDTH / 2;
+    const cy = CONFIG.GAME_HEIGHT / 2;
+    this.particles.explode(cx, cy, '#ff7733', 30);
+    this.particles.chainSplitLightning(cx, cy, '#ffaa44');
+
+    // Snapshot all alive segments, then directly deactivate them
+    const segs = this.shards.getAllSegments();
+    let count = 0;
+    for (const { segment } of segs) {
+      if (!segment.alive) continue;
+      segment.hp = 0;
+      segment.alive = false;
+      this.particles.shardBreak(segment.centerX, segment.centerY, segment.color);
+      count++;
+      this.score += CONFIG.SCORE_PER_SHARD;
+      this.totalShardsDestroyed++;
+    }
+    // Clear out dead chains so wave-clear check triggers
+    this.shards.chains = [];
+
+    // Clear hazards
+    for (const h of this.hazards.hazards) {
+      this.particles.explode(h.x, h.y, '#ff7733', 8);
+      h.alive = false;
+    }
+    this.hazards.telegraphs = [];
+
+    if (count > 0) {
+      this.ui.addFloatingText(cx, cy, `BOMB x${count}`, '#ff7733');
+    }
+    this._checkScoreMilestones();
   }
 
   _startGame() {
@@ -408,6 +456,7 @@ export class Game {
     this.comboTimer = 0;
     this.isNewHighScore = false;
     this.lastScoreMilestone = 0;
+    this.lastLifeMilestone = 0;
     this.totalShardsDestroyed = 0;
 
     this.player.reset();
@@ -440,6 +489,15 @@ export class Game {
     );
     const speedMult = Math.min(CONFIG.DIFFICULTY_MAX_SPEED_MULT, 1 + (this.wave - 1) * CONFIG.DIFFICULTY_SPEED_SCALE);
     const speed = CONFIG.SHARD_BASE_SPEED * speedMult + (this.wave - 1) * CONFIG.SHARD_SPEED_INCREMENT;
+
+    // Boss wave every 5 waves: spawn a heavy fortress formation
+    if (this.wave % 5 === 0) {
+      this._spawnBossFormation(speed);
+      Audio.enemySpawn();
+      this.state = STATES.WAVE_INTRO;
+      this.ui.announceWave(this.wave, true);
+      return;
+    }
 
     const formation = this.wave % 5;
 
@@ -506,6 +564,31 @@ export class Game {
     this.ui.announceWave(this.wave);
   }
 
+  // Boss wave: thick armored fortress chain spanning the top
+  _spawnBossFormation(speed) {
+    const segSize = CONFIG.SHARD_SIZE;
+    const bossSpeed = speed * 0.65;
+
+    // Top row: long armored wall (high HP)
+    const topLen = Math.min(CONFIG.WAVE_MAX_LENGTH, 12);
+    const topStartX = (CONFIG.GAME_WIDTH - topLen * segSize) / 2;
+    const topHp = Math.min(4, 2 + Math.floor(this.wave / 10));
+    this.shards.addChain(ShardChain.create(topStartX, 30, topLen, bossSpeed, 0, topHp));
+
+    // Two flanking medium chains
+    const flankLen = 5;
+    const flankHp = Math.min(3, 1 + Math.floor(this.wave / 10));
+    this.shards.addChain(ShardChain.create(20, 70, flankLen, bossSpeed * 1.15, 1, flankHp));
+    this.shards.addChain(ShardChain.create(
+      CONFIG.GAME_WIDTH - 20 - flankLen * segSize, 70, flankLen, bossSpeed * 1.15, 2, flankHp
+    ));
+
+    // Lower escort row
+    const escortLen = 8;
+    const escortStartX = (CONFIG.GAME_WIDTH - escortLen * segSize) / 2;
+    this.shards.addChain(ShardChain.create(escortStartX, 110, escortLen, bossSpeed * 1.25, 1, 1));
+  }
+
   _gameOver() {
     this.state = STATES.GAME_OVER;
     Audio.stopMusic();
@@ -538,6 +621,18 @@ export class Game {
       this.lastScoreMilestone = milestone;
       this.ui.showMilestone(milestone);
       Audio.scoreMilestone();
+    }
+
+    // Extra life bonus every 5000 points
+    const lifeMilestone = Math.floor(this.score / 5000) * 5000;
+    if (lifeMilestone > this.lastLifeMilestone && lifeMilestone > 0) {
+      this.lastLifeMilestone = lifeMilestone;
+      if (this.player.lives < 5) {
+        this.player.lives++;
+        this.ui.showPowerupNotify('BONUS LIFE!', '#00ff88');
+        this.ui.flash('#00ff88', 0.2);
+        Audio.powerUp();
+      }
     }
   }
 
@@ -608,7 +703,12 @@ export class Game {
       }
 
       if (this.state === STATES.PAUSED) {
-        this.menuButton = this.ui.renderPauseScreen(ctx);
+        this.menuButton = this.ui.renderPauseScreen(ctx, {
+          wave: this.wave,
+          score: this.score,
+          shards: this.totalShardsDestroyed,
+          combo: this.comboMultiplier,
+        });
       }
 
       if (this.state === STATES.GAME_OVER) {

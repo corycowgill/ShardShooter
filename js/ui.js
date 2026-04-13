@@ -21,8 +21,15 @@ export class UI {
     this.displayScore = 0; // animated rolling score counter
   }
 
-  announceWave(wave) {
-    this.waveAnnounceText = wave === 0 ? 'GET READY' : `WAVE ${wave}`;
+  announceWave(wave, isBoss = false) {
+    if (wave === 0) {
+      this.waveAnnounceText = 'GET READY';
+    } else if (isBoss) {
+      this.waveAnnounceText = `BOSS WAVE ${wave}`;
+    } else {
+      this.waveAnnounceText = `WAVE ${wave}`;
+    }
+    this.waveAnnounceIsBoss = isBoss;
     this.waveAnnounceTimer = CONFIG.WAVE_INTRO_TIME;
   }
 
@@ -327,11 +334,13 @@ export class UI {
       rapid_fire: '#ff4444',
       spread_shot: '#44aaff',
       shield: '#00e5ff',
+      time_slow: '#aa66ff',
     };
     const LABELS = {
       rapid_fire: 'RAPID',
       spread_shot: 'SPREAD',
       shield: 'SHIELD',
+      time_slow: 'SLOW',
     };
 
     for (const type of types) {
@@ -387,6 +396,7 @@ export class UI {
       rapid_fire: { color: [255, 68, 68], intensity: 0.06 },
       spread_shot: { color: [68, 170, 255], intensity: 0.05 },
       shield: { color: [0, 229, 255], intensity: 0.07 },
+      time_slow: { color: [170, 102, 255], intensity: 0.07 },
     };
 
     for (const type of Object.keys(activeEffects)) {
@@ -460,17 +470,37 @@ export class UI {
 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = 'bold 36px "Courier New", monospace';
+    const isBoss = this.waveAnnounceIsBoss;
+    const textColor = isBoss ? C.UI_DANGER : C.UI_TITLE_SECONDARY;
+    ctx.font = isBoss ? 'bold 30px "Courier New", monospace' : 'bold 36px "Courier New", monospace';
     // Glow layer
-    ctx.shadowColor = C.UI_TITLE_SECONDARY;
+    ctx.shadowColor = textColor;
     ctx.shadowBlur = 25;
-    ctx.fillStyle = C.UI_TITLE_SECONDARY + '55';
+    ctx.fillStyle = textColor + '55';
     ctx.fillText(this.waveAnnounceText, 0, 0);
     // Main text
     ctx.shadowBlur = 15;
-    ctx.fillStyle = C.UI_TITLE_SECONDARY;
+    ctx.fillStyle = textColor;
     ctx.fillText(this.waveAnnounceText, 0, 0);
     ctx.shadowBlur = 0;
+
+    // Boss warning bars
+    if (isBoss) {
+      ctx.strokeStyle = C.UI_DANGER;
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = alpha * 0.8;
+      for (let i = 0; i < 4; i++) {
+        const bx = -W * 0.4 + i * 18;
+        ctx.beginPath();
+        ctx.moveTo(bx, -34);
+        ctx.lineTo(bx + 12, -34);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(W * 0.4 - bx - 12, 34);
+        ctx.lineTo(W * 0.4 - bx, 34);
+        ctx.stroke();
+      }
+    }
 
     ctx.globalAlpha = 1;
     ctx.restore();
@@ -644,11 +674,13 @@ export class UI {
     return { x: btnX, y: btnY, width: btnW, height: btnH };
   }
 
-  renderPauseScreen(ctx) {
+  renderPauseScreen(ctx, stats = null) {
     ctx.save();
+    const W = CONFIG.GAME_WIDTH;
+    const H = CONFIG.GAME_HEIGHT;
 
-    ctx.fillStyle = 'rgba(10, 10, 26, 0.8)';
-    ctx.fillRect(0, 0, CONFIG.GAME_WIDTH, CONFIG.GAME_HEIGHT);
+    ctx.fillStyle = 'rgba(10, 10, 26, 0.85)';
+    ctx.fillRect(0, 0, W, H);
 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -656,25 +688,70 @@ export class UI {
     ctx.fillStyle = C.UI_TEXT;
     ctx.shadowColor = C.UI_TITLE_SECONDARY;
     ctx.shadowBlur = 10;
-    ctx.fillText('PAUSED', CONFIG.GAME_WIDTH / 2, CONFIG.GAME_HEIGHT / 2 - 30);
+    ctx.fillText('PAUSED', W / 2, H / 2 - 100);
     ctx.shadowBlur = 0;
+
+    // Stats panel
+    if (stats) {
+      const panelW = 220;
+      const panelH = 110;
+      const panelX = W / 2 - panelW / 2;
+      const panelY = H / 2 - 60;
+
+      ctx.fillStyle = 'rgba(0, 20, 40, 0.6)';
+      ctx.fillRect(panelX, panelY, panelW, panelH);
+      ctx.strokeStyle = 'rgba(0, 229, 255, 0.3)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(panelX, panelY, panelW, panelH);
+
+      // Corner accents
+      ctx.strokeStyle = C.UI_TITLE_SECONDARY;
+      ctx.lineWidth = 2;
+      const ac = 8;
+      ctx.beginPath();
+      ctx.moveTo(panelX, panelY + ac); ctx.lineTo(panelX, panelY); ctx.lineTo(panelX + ac, panelY);
+      ctx.moveTo(panelX + panelW - ac, panelY); ctx.lineTo(panelX + panelW, panelY); ctx.lineTo(panelX + panelW, panelY + ac);
+      ctx.moveTo(panelX, panelY + panelH - ac); ctx.lineTo(panelX, panelY + panelH); ctx.lineTo(panelX + ac, panelY + panelH);
+      ctx.moveTo(panelX + panelW - ac, panelY + panelH); ctx.lineTo(panelX + panelW, panelY + panelH); ctx.lineTo(panelX + panelW, panelY + panelH - ac);
+      ctx.stroke();
+
+      ctx.font = '11px "Courier New", monospace';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.textAlign = 'left';
+      ctx.fillText('WAVE', panelX + 14, panelY + 20);
+      ctx.fillText('SCORE', panelX + 14, panelY + 42);
+      ctx.fillText('SHARDS', panelX + 14, panelY + 64);
+      ctx.fillText('COMBO', panelX + 14, panelY + 86);
+
+      ctx.font = 'bold 14px "Courier New", monospace';
+      ctx.fillStyle = C.UI_TITLE_SECONDARY;
+      ctx.textAlign = 'right';
+      ctx.fillText(`${stats.wave}`, panelX + panelW - 14, panelY + 20);
+      ctx.fillStyle = C.UI_SCORE;
+      ctx.fillText(`${stats.score}`, panelX + panelW - 14, panelY + 42);
+      ctx.fillStyle = C.UI_TEXT;
+      ctx.fillText(`${stats.shards}`, panelX + panelW - 14, panelY + 64);
+      ctx.fillStyle = stats.combo > 1 ? C.UI_SCORE : 'rgba(255,255,255,0.5)';
+      ctx.fillText(`x${stats.combo.toFixed(1)}`, panelX + panelW - 14, panelY + 86);
+      ctx.textAlign = 'center';
+    }
 
     // Resume button
     const btnW = 160;
     const btnH = 44;
-    const btnX = CONFIG.GAME_WIDTH / 2 - btnW / 2;
-    const btnY = CONFIG.GAME_HEIGHT / 2 + 20;
+    const btnX = W / 2 - btnW / 2;
+    const btnY = H / 2 + 80;
 
     ctx.strokeStyle = C.UI_TITLE_SECONDARY;
     ctx.lineWidth = 2;
     ctx.strokeRect(btnX, btnY, btnW, btnH);
     ctx.font = 'bold 18px "Courier New", monospace';
     ctx.fillStyle = C.UI_TITLE_SECONDARY;
-    ctx.fillText('RESUME', CONFIG.GAME_WIDTH / 2, btnY + btnH / 2);
+    ctx.fillText('RESUME', W / 2, btnY + btnH / 2);
 
     ctx.font = '11px "Courier New", monospace';
     ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-    ctx.fillText('P OR ESC TO RESUME', CONFIG.GAME_WIDTH / 2, btnY + btnH + 30);
+    ctx.fillText('P OR ESC TO RESUME', W / 2, btnY + btnH + 20);
 
     ctx.restore();
 
