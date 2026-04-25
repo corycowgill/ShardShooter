@@ -85,6 +85,43 @@ export class ShardSegment {
     const isFlashing = this.flashTimer > 0;
     if (isFlashing) this.flashTimer--;
 
+    // --- Boss / Armored special aura ---
+    if (this.maxHp >= 3) {
+      const auraPhase = this.pulsePhase * 1.5;
+      const auraPulse = 0.4 + Math.sin(auraPhase) * 0.3;
+      const auraR = s * 2.0 + Math.sin(auraPhase * 0.7) * s * 0.3;
+      const auraGrad = ctx.createRadialGradient(0, 0, s * 0.5, 0, 0, auraR);
+      auraGrad.addColorStop(0, `rgba(255, 110, 64, ${auraPulse * 0.12})`);
+      auraGrad.addColorStop(0.4, `rgba(255, 60, 30, ${auraPulse * 0.08})`);
+      auraGrad.addColorStop(0.7, `rgba(255, 180, 60, ${auraPulse * 0.04})`);
+      auraGrad.addColorStop(1, 'transparent');
+      ctx.fillStyle = auraGrad;
+      ctx.beginPath();
+      ctx.arc(0, 0, auraR, 0, Math.PI * 2);
+      ctx.fill();
+      // Orbiting energy wisps
+      for (let w = 0; w < 3; w++) {
+        const wa = auraPhase + (Math.PI * 2 * w) / 3;
+        const wr = s * 1.3;
+        const wx = Math.cos(wa) * wr;
+        const wy = Math.sin(wa) * wr;
+        ctx.fillStyle = `rgba(255, 180, 80, ${auraPulse * 0.5})`;
+        ctx.beginPath();
+        ctx.arc(wx, wy, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (this.maxHp === 2) {
+      const auraPulse = 0.3 + Math.sin(this.pulsePhase * 1.2) * 0.2;
+      const auraGrad = ctx.createRadialGradient(0, 0, s * 0.4, 0, 0, s * 1.7);
+      auraGrad.addColorStop(0, `rgba(255, 110, 64, ${auraPulse * 0.08})`);
+      auraGrad.addColorStop(0.6, `rgba(255, 80, 40, ${auraPulse * 0.04})`);
+      auraGrad.addColorStop(1, 'transparent');
+      ctx.fillStyle = auraGrad;
+      ctx.beginPath();
+      ctx.arc(0, 0, s * 1.7, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     // --- Outer corona glow (radial, larger than shard) ---
     const coronaGrad = ctx.createRadialGradient(0, 0, s * 0.3, 0, 0, s * 1.6);
     coronaGrad.addColorStop(0, isFlashing ? 'rgba(255,255,255,0.3)' : (baseColor + '22'));
@@ -166,8 +203,12 @@ export class ShardSegment {
       ctx.globalAlpha = 1;
 
       // --- Crystalline fracture veins ---
-      ctx.strokeStyle = lighten(baseColor, 80) + '44';
-      ctx.lineWidth = 0.5;
+      const damaged = this.maxHp > 1 && this.hp < this.maxHp;
+      const damageRatio = this.maxHp > 1 ? 1 - this.hp / this.maxHp : 0;
+      const veinAlpha = damaged ? '88' : '44';
+      const veinWidth = damaged ? 0.8 + damageRatio * 0.6 : 0.5;
+      ctx.strokeStyle = damaged ? '#ffffff' + veinAlpha : lighten(baseColor, 80) + '44';
+      ctx.lineWidth = veinWidth;
       // Vein 1: center to top-right
       ctx.beginPath();
       ctx.moveTo(0, -s * 0.1);
@@ -185,6 +226,43 @@ export class ShardSegment {
       ctx.moveTo(0, -s * 0.1);
       ctx.lineTo(s * 0.4, s * 0.15);
       ctx.stroke();
+
+      // Additional damage cracks when armor is damaged
+      if (damaged) {
+        ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + damageRatio * 0.4})`;
+        ctx.lineWidth = 0.6 + damageRatio * 0.8;
+        // Crack 4: top-left to edge
+        ctx.beginPath();
+        ctx.moveTo(-s * 0.1, -s * 0.15);
+        ctx.lineTo(-s * 0.4, -s * 0.6);
+        ctx.lineTo(-s * 0.55, -s * 0.45);
+        ctx.stroke();
+        // Crack 5: bottom-right deep
+        ctx.beginPath();
+        ctx.moveTo(s * 0.1, s * 0.1);
+        ctx.lineTo(s * 0.5, s * 0.5);
+        ctx.lineTo(s * 0.35, s * 0.65);
+        ctx.stroke();
+        if (damageRatio > 0.5) {
+          // Crack 6: severe — zigzag across
+          ctx.strokeStyle = `rgba(255, 200, 150, ${damageRatio * 0.5})`;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(-s * 0.6, -s * 0.1);
+          ctx.lineTo(-s * 0.15, s * 0.05);
+          ctx.lineTo(s * 0.2, -s * 0.15);
+          ctx.lineTo(s * 0.55, s * 0.1);
+          ctx.stroke();
+        }
+        // Damage glow leak from cracks
+        const leakGrad = ctx.createRadialGradient(0, 0, s * 0.1, 0, 0, s * 0.7);
+        leakGrad.addColorStop(0, `rgba(255, 200, 100, ${damageRatio * 0.15})`);
+        leakGrad.addColorStop(1, 'transparent');
+        ctx.fillStyle = leakGrad;
+        ctx.beginPath();
+        ctx.arc(0, 0, s * 0.7, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
       // --- Animated energy core ---
       const coreGrad = ctx.createRadialGradient(0, -s * 0.05, 0, 0, -s * 0.05, s * 0.35);

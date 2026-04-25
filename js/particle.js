@@ -11,11 +11,12 @@ class Particle {
     this.life = life;
     this.maxLife = life;
     this.size = size;
-    this.type = type; // 'circle', 'spark', 'shard', 'ring', 'ember', 'streak', 'confetti'
+    this.type = type;
     this.rotation = Math.random() * Math.PI * 2;
     this.rotSpeed = (Math.random() - 0.5) * 0.2;
     this.gravity = 0.02;
     this.drag = 0.99;
+    this.color2 = null;
   }
 
   update() {
@@ -165,6 +166,57 @@ export class ParticleSystem {
         ctx.shadowBlur = 0;
         ctx.beginPath();
         ctx.arc(p.x, p.y, es * 0.4, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (p.type === 'speedline') {
+        const len = 12 + p.size * 4;
+        const angle = Math.atan2(p.vy, p.vx);
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(angle);
+        const grad = ctx.createLinearGradient(0, 0, -len, 0);
+        grad.addColorStop(0, p.color);
+        grad.addColorStop(0.3, p.color + '88');
+        grad.addColorStop(1, 'transparent');
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = p.size * 0.6;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(-len, 0);
+        ctx.stroke();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(0, 0, p.size * 0.3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      } else if (p.type === 'shockwave') {
+        const radius = p.size * (1 - p.alpha) * 5 + 2;
+        const lw = Math.max(0.5, p.alpha * 4);
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = lw;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+        ctx.stroke();
+        if (p.color2) {
+          ctx.globalAlpha = p.alpha * 0.4;
+          ctx.strokeStyle = p.color2;
+          ctx.lineWidth = lw * 0.5;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, radius * 1.3, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.shadowBlur = 0;
+      } else if (p.type === 'heatdist') {
+        const radius = p.size * (1 - p.alpha * 0.5);
+        const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, radius);
+        grad.addColorStop(0, p.color + Math.floor(p.alpha * 40).toString(16).padStart(2, '0'));
+        grad.addColorStop(0.6, p.color + '08');
+        grad.addColorStop(1, 'transparent');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
         ctx.fill();
       } else {
         // Standard circle with glow
@@ -415,6 +467,194 @@ export class ParticleSystem {
       p.gravity = -0.01;
       this.particles.push(p);
     }
+  }
+
+  // Dash burst — speed lines streaming behind player
+  dashBurst(x, y, direction) {
+    for (let i = 0; i < 12; i++) {
+      const spread = (Math.random() - 0.5) * 1.5;
+      const speed = 4 + Math.random() * 6;
+      const p = new Particle(
+        x + (Math.random() - 0.5) * 20,
+        y + (Math.random() - 0.5) * 12,
+        -direction * speed,
+        spread,
+        '#00e5ff',
+        8 + Math.random() * 8,
+        1.2 + Math.random() * 1.5,
+        'speedline'
+      );
+      p.gravity = 0;
+      p.drag = 0.92;
+      this.particles.push(p);
+    }
+    // Central flash ring
+    const flash = new Particle(x, y, 0, 0, '#00e5ff', 10, 10, 'ring');
+    flash.gravity = 0;
+    this.particles.push(flash);
+    // Bright afterimage ghosts
+    for (let i = 0; i < 4; i++) {
+      const p = new Particle(
+        x - direction * i * 6, y,
+        -direction * 0.5, 0,
+        'rgba(0, 229, 255, 0.6)',
+        12 - i * 2,
+        3 + i,
+        'heatdist'
+      );
+      p.gravity = 0;
+      p.drag = 1;
+      this.particles.push(p);
+    }
+  }
+
+  // Power-up implosion then burst
+  powerupCollect(x, y, color) {
+    // Inward-converging ring
+    for (let i = 0; i < 10; i++) {
+      const angle = (Math.PI * 2 * i) / 10;
+      const dist = 25 + Math.random() * 10;
+      const p = new Particle(
+        x + Math.cos(angle) * dist,
+        y + Math.sin(angle) * dist,
+        -Math.cos(angle) * 3.5,
+        -Math.sin(angle) * 3.5,
+        color,
+        8 + Math.random() * 4,
+        1.2,
+        'spark'
+      );
+      p.gravity = 0;
+      p.drag = 0.9;
+      this.particles.push(p);
+    }
+    // Delayed outward burst (slightly slower particles that start after implosion)
+    for (let i = 0; i < 8; i++) {
+      const angle = (Math.PI * 2 * i) / 8 + 0.4;
+      const speed = 1.5 + Math.random() * 2;
+      const p = new Particle(
+        x, y,
+        Math.cos(angle) * speed,
+        Math.sin(angle) * speed,
+        '#ffffff',
+        12 + Math.random() * 8,
+        1,
+        'ember'
+      );
+      p.gravity = -0.01;
+      this.particles.push(p);
+    }
+    // Central bright shockwave
+    const sw = new Particle(x, y, 0, 0, color, 14, 6, 'shockwave');
+    sw.gravity = 0;
+    sw.color2 = '#ffffff';
+    this.particles.push(sw);
+  }
+
+  // Player death — dramatic radial shockwave with debris
+  playerDeath(x, y) {
+    // Large shockwave
+    const sw = new Particle(x, y, 0, 0, CONFIG.COLORS.PLAYER, 30, 16, 'shockwave');
+    sw.gravity = 0;
+    sw.color2 = '#ff4444';
+    this.particles.push(sw);
+    // Secondary slower shockwave
+    const sw2 = new Particle(x, y, 0, 0, '#ffffff', 22, 10, 'shockwave');
+    sw2.gravity = 0;
+    this.particles.push(sw2);
+    // Hull fragments
+    for (let i = 0; i < 12; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 2 + Math.random() * 4;
+      const p = new Particle(
+        x, y,
+        Math.cos(angle) * speed,
+        Math.sin(angle) * speed,
+        i < 6 ? CONFIG.COLORS.PLAYER : '#0088bb',
+        35 + Math.random() * 25,
+        2.5 + Math.random() * 3,
+        'shard'
+      );
+      p.drag = 0.97;
+      this.particles.push(p);
+    }
+    // Dense spark spray
+    for (let i = 0; i < 20; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 3 + Math.random() * 5;
+      const sp = new Particle(
+        x, y,
+        Math.cos(angle) * speed,
+        Math.sin(angle) * speed,
+        i % 3 === 0 ? '#ff4444' : '#ffffff',
+        8 + Math.random() * 10,
+        0.8 + Math.random() * 0.8,
+        'spark'
+      );
+      sp.gravity = 0;
+      this.particles.push(sp);
+    }
+    // Long-lasting embers
+    for (let i = 0; i < 10; i++) {
+      const p = new Particle(
+        x + (Math.random() - 0.5) * 20,
+        y + (Math.random() - 0.5) * 20,
+        (Math.random() - 0.5) * 1.2,
+        -1 - Math.random() * 2,
+        i < 5 ? CONFIG.COLORS.PLAYER : '#ff6644',
+        50 + Math.random() * 30,
+        1.5 + Math.random() * 1.5,
+        'ember'
+      );
+      p.gravity = -0.008;
+      this.particles.push(p);
+    }
+    // Heat distortion cloud
+    for (let i = 0; i < 4; i++) {
+      const p = new Particle(
+        x + (Math.random() - 0.5) * 10,
+        y + (Math.random() - 0.5) * 10,
+        (Math.random() - 0.5) * 0.5,
+        -0.3 - Math.random() * 0.5,
+        '#ff6644',
+        40 + Math.random() * 20,
+        15 + Math.random() * 10,
+        'heatdist'
+      );
+      p.gravity = -0.003;
+      p.drag = 0.995;
+      this.particles.push(p);
+    }
+  }
+
+  // Combo aura embers around player
+  comboAura(x, y, intensity) {
+    const count = Math.min(3, Math.floor(intensity));
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 12 + Math.random() * 8;
+      const p = new Particle(
+        x + Math.cos(angle) * dist,
+        y + Math.sin(angle) * dist,
+        (Math.random() - 0.5) * 0.3,
+        -0.8 - Math.random() * 1.2,
+        intensity > 3 ? '#ff4444' : '#ffaa00',
+        15 + Math.random() * 10,
+        1 + Math.random() * 1,
+        'ember'
+      );
+      p.gravity = -0.015;
+      p.drag = 0.98;
+      this.particles.push(p);
+    }
+  }
+
+  // Background combat pulse
+  combatFlash(x, y, color) {
+    const p = new Particle(x, y, 0, 0, color, 18, 20, 'heatdist');
+    p.gravity = 0;
+    p.drag = 1;
+    this.particles.push(p);
   }
 
   // Wave clear celebration — confetti + ring burst

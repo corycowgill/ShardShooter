@@ -18,7 +18,7 @@ export class PostFX {
     }
   }
 
-  render(ctx, time, shakeActive = false) {
+  render(ctx, time, shakeActive = false, timeSlow = false) {
     const W = CONFIG.GAME_WIDTH;
     const H = CONFIG.GAME_HEIGHT;
 
@@ -82,7 +82,48 @@ export class PostFX {
     ctx.globalAlpha = 1;
     ctx.restore();
 
-    // --- 5. Enhanced vignette (tighter, with color tint) ---
+    // --- 5. Time-slow visual distortion ---
+    if (timeSlow) {
+      // Desaturation overlay (slightly washed-out purple tint)
+      ctx.save();
+      ctx.globalCompositeOperation = 'color';
+      ctx.globalAlpha = 0.12;
+      ctx.fillStyle = '#aa66ff';
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+      ctx.restore();
+
+      // Radial distortion lines
+      ctx.save();
+      ctx.globalAlpha = 0.03 + Math.sin(time * 0.003) * 0.015;
+      const distCX = W / 2;
+      const distCY = H / 2;
+      for (let i = 0; i < 16; i++) {
+        const a = (Math.PI * 2 * i) / 16 + time * 0.0005;
+        const innerR = H * 0.15;
+        const outerR = H * 0.7;
+        ctx.strokeStyle = '#aa66ff';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(distCX + Math.cos(a) * innerR, distCY + Math.sin(a) * innerR);
+        ctx.lineTo(distCX + Math.cos(a) * outerR, distCY + Math.sin(a) * outerR);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      ctx.restore();
+
+      // Pulsing edge glow
+      const slowVigGrad = ctx.createRadialGradient(W / 2, H / 2, H * 0.25, W / 2, H / 2, H * 0.7);
+      const slowPulse = 0.06 + Math.sin(time * 0.004) * 0.03;
+      slowVigGrad.addColorStop(0, 'transparent');
+      slowVigGrad.addColorStop(0.7, `rgba(170, 102, 255, ${slowPulse})`);
+      slowVigGrad.addColorStop(1, `rgba(120, 60, 200, ${slowPulse * 2})`);
+      ctx.fillStyle = slowVigGrad;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // --- 6. Enhanced vignette (tighter, with color tint) ---
     const vigGrad = ctx.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.78);
     vigGrad.addColorStop(0, 'transparent');
     vigGrad.addColorStop(0.7, 'rgba(0, 0, 10, 0.15)');

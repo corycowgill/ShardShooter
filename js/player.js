@@ -166,7 +166,7 @@ export class Player {
     };
   }
 
-  render(ctx, shieldPowerUp = false) {
+  render(ctx, shieldPowerUp = false, comboMultiplier = 1) {
     if (!this.alive) return;
 
     // Blink when invincible
@@ -184,22 +184,58 @@ export class Player {
     ctx.translate(-cx, -cy);
 
     // --- Afterimage ghost trail ---
+    const isDashing = this.dashTimer > 0;
     for (let i = 0; i < this.trail.length; i++) {
       const t = this.trail[i];
-      const ga = (i + 1) / (this.trail.length + 1) * 0.15;
+      const ratio = (i + 1) / (this.trail.length + 1);
+      const ga = isDashing ? ratio * 0.35 : ratio * 0.15;
       const tcx = t.x + this.width / 2;
       ctx.save();
       ctx.globalAlpha = ga;
       ctx.translate(tcx, cy);
       ctx.rotate(t.tilt);
       ctx.translate(-tcx, -cy);
-      ctx.fillStyle = CONFIG.COLORS.PLAYER;
+      if (isDashing) {
+        const dashGrad = ctx.createLinearGradient(tcx, t.y - 3, tcx, t.y + this.height * 0.7);
+        dashGrad.addColorStop(0, '#00e5ff');
+        dashGrad.addColorStop(0.5, '#0088cc');
+        dashGrad.addColorStop(1, 'transparent');
+        ctx.fillStyle = dashGrad;
+        ctx.shadowColor = '#00e5ff';
+        ctx.shadowBlur = 8;
+      } else {
+        ctx.fillStyle = CONFIG.COLORS.PLAYER;
+      }
       ctx.beginPath();
       ctx.moveTo(tcx, t.y - 3);
       ctx.lineTo(tcx + this.width / 2, t.y + this.height * 0.7);
       ctx.lineTo(tcx - this.width / 2, t.y + this.height * 0.7);
       ctx.closePath();
       ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    }
+
+    // --- Dash speed streaks across the body ---
+    if (isDashing) {
+      const dashAlpha = Math.min(1, this.dashTimer / 60);
+      ctx.save();
+      ctx.globalAlpha = dashAlpha * 0.6;
+      for (let i = 0; i < 5; i++) {
+        const sy = this.y + 2 + i * 4 + Math.random() * 2;
+        const sx = cx + this.dashDir * (6 + i * 3);
+        const lineLen = 8 + Math.random() * 12;
+        const grad = ctx.createLinearGradient(sx, sy, sx - this.dashDir * lineLen, sy);
+        grad.addColorStop(0, '#ffffff');
+        grad.addColorStop(0.3, '#00e5ff88');
+        grad.addColorStop(1, 'transparent');
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 0.6 + Math.random() * 0.4;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx - this.dashDir * lineLen, sy);
+        ctx.stroke();
+      }
       ctx.restore();
     }
 
@@ -273,6 +309,36 @@ export class Player {
         }
       }
       ctx.shadowBlur = 0;
+    }
+
+    // --- Combo heat aura (visible at 2x+ multiplier) ---
+    if (comboMultiplier > 1.5) {
+      const comboIntensity = Math.min(1, (comboMultiplier - 1.5) / 3);
+      const comboPulse = 0.5 + Math.sin(this.thrusterPhase * 2) * 0.3;
+      const auraRadius = this.width * (0.8 + comboIntensity * 0.6);
+      const auraGrad = ctx.createRadialGradient(cx, cy, this.width * 0.3, cx, cy, auraRadius);
+      const highCombo = comboMultiplier > 3;
+      const auraColor = highCombo ? 'rgba(255, 60, 30,' : 'rgba(255, 170, 0,';
+      auraGrad.addColorStop(0, `${auraColor} ${comboPulse * comboIntensity * 0.1})`);
+      auraGrad.addColorStop(0.5, `${auraColor} ${comboPulse * comboIntensity * 0.06})`);
+      auraGrad.addColorStop(1, `${auraColor} 0)`);
+      ctx.fillStyle = auraGrad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, auraRadius, 0, Math.PI * 2);
+      ctx.fill();
+      // Rising heat wisps
+      if (comboIntensity > 0.3) {
+        for (let i = 0; i < 2; i++) {
+          const wispPhase = this.thrusterPhase * 1.5 + i * Math.PI;
+          const wx = cx + Math.sin(wispPhase) * this.width * 0.4;
+          const wy = this.y - 2 + Math.sin(wispPhase * 0.7) * 3;
+          const wAlpha = comboPulse * comboIntensity * 0.3;
+          ctx.fillStyle = highCombo ? `rgba(255, 80, 40, ${wAlpha})` : `rgba(255, 200, 60, ${wAlpha})`;
+          ctx.beginPath();
+          ctx.arc(wx, wy, 1.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
     }
 
     // --- Thruster flames (enhanced with color layers) ---

@@ -172,6 +172,12 @@ export class Game {
   _updatePlaying(dt) {
     this.player.update(this.input, dt);
 
+    // Dash visual effects
+    if (this.player.justDashed) {
+      this.particles.dashBurst(this.player.centerX, this.player.centerY, this.player.dashDir);
+      this._shake(2, 60);
+    }
+
     // Pause from touch
     if (this.input.touchActive) {
       const tx = this.input.touchX;
@@ -234,6 +240,14 @@ export class Game {
         this.player.centerX + (Math.random() - 0.5) * 6,
         this.player.y + this.player.height + 4,
         CONFIG.COLORS.PLAYER
+      );
+    }
+
+    // Combo aura around player at high multipliers
+    if (this.player.alive && this.comboMultiplier > 1.5 && Math.random() < 0.3) {
+      this.particles.comboAura(
+        this.player.centerX, this.player.centerY,
+        this.comboMultiplier
       );
     }
 
@@ -339,6 +353,11 @@ export class Game {
         // Floating score text
         this.ui.addFloatingText(x, y, `+${points}`, CONFIG.COLORS.UI_SCORE);
 
+        // Background combat pulse on kills
+        if (this.combo > 3) {
+          this.particles.combatFlash(x, y, CONFIG.COLORS.SHARD_PRIMARY);
+        }
+
         if (this.combo > 1) {
           this.ui.showCombo(this.comboMultiplier);
         }
@@ -401,8 +420,8 @@ export class Game {
     if (!collected) return;
 
     Audio.powerUp();
-    this.particles.explode(collected.x, collected.y, collected.def.color, 12);
-    this.ui.flash(collected.def.color, 0.12);
+    this.particles.powerupCollect(collected.x, collected.y, collected.def.color);
+    this.ui.flash(collected.def.color, 0.15);
 
     switch (collected.type) {
       case POWERUP_TYPES.RAPID_FIRE:
@@ -436,11 +455,15 @@ export class Game {
     this._shake(CONFIG.SHAKE_INTENSITY * 2, CONFIG.SHAKE_DURATION * 2);
     this.ui.flash('#ff7733', 0.4);
 
-    // Big central explosion
+    // Big central explosion with dramatic shockwave
     const cx = CONFIG.GAME_WIDTH / 2;
     const cy = CONFIG.GAME_HEIGHT / 2;
     this.particles.explode(cx, cy, '#ff7733', 30);
     this.particles.chainSplitLightning(cx, cy, '#ffaa44');
+    // Secondary explosions at corners for screen-wide impact
+    this.particles.explode(cx - 80, cy - 60, '#ffaa44', 10);
+    this.particles.explode(cx + 80, cy - 60, '#ffaa44', 10);
+    this.particles.explode(cx, cy + 80, '#ff5500', 10);
 
     // Snapshot all alive segments, then directly deactivate them
     const segs = this.shards.getAllSegments();
@@ -621,7 +644,9 @@ export class Game {
     this.state = STATES.GAME_OVER;
     Audio.stopMusic();
     Audio.gameOver();
-    this.ui.flash('#ff1744', 0.4);
+    this.ui.flash('#ff1744', 0.6);
+    this._shake(CONFIG.SHAKE_INTENSITY * 2.5, CONFIG.SHAKE_DURATION * 3);
+    this.particles.playerDeath(this.player.centerX, this.player.centerY);
 
     if (this.score > this.highScore) {
       this.highScore = this.score;
@@ -726,7 +751,7 @@ export class Game {
       this.shards.render(ctx);
       this.powerups.render(ctx);
       this.bullets.render(ctx);
-      this.player.render(ctx, this.powerups.hasEffect(POWERUP_TYPES.SHIELD));
+      this.player.render(ctx, this.powerups.hasEffect(POWERUP_TYPES.SHIELD), this.comboMultiplier);
       this.particles.render(ctx);
       this.ui.renderFloatingTexts(ctx);
 
@@ -766,6 +791,9 @@ export class Game {
     ctx.restore();
 
     // Post-processing pass (after restore so it applies to full frame)
-    this.postfx.render(ctx, this.time, this.shakeTimer > 0);
+    this.postfx.render(
+      ctx, this.time, this.shakeTimer > 0,
+      this.powerups.hasEffect(POWERUP_TYPES.TIME_SLOW)
+    );
   }
 }
